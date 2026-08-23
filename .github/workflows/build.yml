@@ -43,6 +43,8 @@ jobs:
           # Neu chay trong android/ thi Gradle se doc settings.gradle.kts,
           # file nay can local.properties - ma chi Flutter moi tao ra luc build.
           mkdir -p /tmp/wrap && cd /tmp/wrap
+          # Gradle 9 doi thu muc phai co file settings -> tao file rong
+          : > settings.gradle.kts
           gradle wrapper --gradle-version 8.13 --distribution-type all
           cd "$GITHUB_WORKSPACE"
           cp /tmp/wrap/gradlew android/gradlew
