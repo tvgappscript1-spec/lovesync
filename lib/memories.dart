@@ -1,15 +1,12 @@
-// LoveSync - memories.dart
-// Ban do ky niem: tu dong lay GPS + dia chi, tu gan ngay gio, chup/chon anh, ghi chu.
+// LoveSync - memories.dart (ban khong dung GPS)
+// Ky niem: nhap dia diem bang tay, thoi gian tu dong, chup/chon anh, ghi chu.
+// Da go geolocator / geocoding / flutter_map de build APK on dinh.
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'main.dart';
@@ -21,22 +18,16 @@ import 'extras.dart' show EmptyState;
 // ============================================================
 class Memory {
   final String id;
-  final double lat;
-  final double lng;
-  final String place; // ten ngan gon: phuong/quan
-  final String address; // dia chi day du
-  final String at; // ISO8601 - ngay gio tu dong
+  final String place; // ten dia diem, nguoi dung tu nhap
+  final String at; // ISO8601 - tu dong gan luc luu
   final String photoPath; // anh goc tren may nay
-  final String thumb; // anh thu nho base64 -> de dong bo sang may kia
+  final String thumb; // anh thu nho base64 -> dong bo sang may kia
   final String note;
-  final String by; // ai la nguoi luu
+  final String by; // ai la nguoi ghim
 
   Memory({
     required this.id,
-    required this.lat,
-    required this.lng,
     required this.place,
-    required this.address,
     required this.at,
     this.photoPath = '',
     this.thumb = '',
@@ -46,10 +37,7 @@ class Memory {
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'lat': lat,
-        'lng': lng,
         'place': place,
-        'address': address,
         'at': at,
         'photoPath': photoPath,
         'thumb': thumb,
@@ -59,11 +47,9 @@ class Memory {
 
   factory Memory.fromJson(Map<String, dynamic> j) => Memory(
         id: (j['id'] ?? '').toString(),
-        lat: (j['lat'] as num?)?.toDouble() ?? 0,
-        lng: (j['lng'] as num?)?.toDouble() ?? 0,
         place: (j['place'] ?? '').toString(),
-        address: (j['address'] ?? '').toString(),
-        at: (j['at'] ?? '').toString(),
+        // Tuong thich ban cu: truoc day dung khoa 'date'
+        at: (j['at'] ?? j['date'] ?? '').toString(),
         photoPath: (j['photoPath'] ?? '').toString(),
         thumb: (j['thumb'] ?? '').toString(),
         note: (j['note'] ?? '').toString(),
@@ -71,7 +57,7 @@ class Memory {
       );
 
   DateTime get time => DateTime.tryParse(at) ?? DateTime.now();
-  bool get hasCoords => lat != 0 || lng != 0;
+  bool get hasPhoto => photoPath.isNotEmpty || thumb.isNotEmpty;
 
   /// Anh de hien thi: uu tien file goc, khong co thi dung thumb dong bo ve.
   Widget photo({double? w, double? h, BoxFit fit = BoxFit.cover}) {
@@ -115,8 +101,18 @@ class MemoryStore {
 String prettyDateTime(DateTime d) =>
     '${two(d.day)}/${two(d.month)}/${d.year} • ${two(d.hour)}:${two(d.minute)}';
 
+/// Goi y dia diem gan day de bam 1 cham thay vi go lai.
+List<String> recentPlaces() {
+  final seen = <String>[];
+  for (final m in MemoryStore.all()) {
+    if (m.place.isNotEmpty && !seen.contains(m.place)) seen.add(m.place);
+    if (seen.length >= 6) break;
+  }
+  return seen;
+}
+
 // ============================================================
-// TAB TIMELINE  (thay the tab "Ky niem" cu trong extras.dart)
+// TAB TIMELINE
 // ============================================================
 class MemoryTab extends StatefulWidget {
   const MemoryTab({super.key});
@@ -150,49 +146,33 @@ class _MemoryTabState extends State<MemoryTab> {
   @override
   Widget build(BuildContext context) {
     final list = MemoryStore.all();
-    final withCoords = list.where((e) => e.hasCoords).toList();
+    final places = list.map((e) => e.place).where((e) => e.isNotEmpty).toSet();
 
     return ListView(
       children: [
-        // Banner ban do
         Section(
           padding: const EdgeInsets.all(0),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: withCoords.isEmpty
-                ? null
-                : () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => MemoryMapScreen(items: withCoords)),
-                    ),
-            child: Container(
-              height: 140,
-              decoration: BoxDecoration(
-                gradient: C.grad,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.map_outlined,
-                        size: 34, color: Colors.white),
-                    const SizedBox(height: 8),
-                    Text('${withCoords.length} nơi hai đứa đã đi qua',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15)),
-                    const SizedBox(height: 2),
-                    Text(
-                        withCoords.isEmpty
-                            ? 'Ghim kỷ niệm đầu tiên để mở bản đồ'
-                            : 'Chạm để xem trên bản đồ',
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 11.5)),
-                  ],
-                ),
+          child: Container(
+            height: 130,
+            decoration: BoxDecoration(
+              gradient: C.grad,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('💞', style: TextStyle(fontSize: 30)),
+                  const SizedBox(height: 8),
+                  Text(
+                      list.isEmpty
+                          ? 'Chưa có kỷ niệm nào'
+                          : '${list.length} kỷ niệm • ${places.length} nơi đã đi qua',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15)),
+                ],
               ),
             ),
           ),
@@ -202,7 +182,7 @@ class _MemoryTabState extends State<MemoryTab> {
           padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
           child: GradientButton(
             label: 'Ghim khoảnh khắc này',
-            icon: Icons.add_location_alt_outlined,
+            icon: Icons.add_a_photo_outlined,
             onTap: _openAdd,
           ),
         ),
@@ -211,31 +191,27 @@ class _MemoryTabState extends State<MemoryTab> {
           const EmptyState(
             emoji: '📍',
             text:
-                'Chưa có kỷ niệm nào.\nĐang đi chơi cùng nhau? Bấm nút trên, app tự lấy vị trí và thời gian.',
+                'Đang đi chơi cùng nhau?\nBấm nút trên, chụp một tấm và viết vài dòng.',
           ),
 
-        ...list.map((m) => _card(m)),
+        ...list.map(_card),
         const SizedBox(height: 24),
       ],
     );
   }
 
   Widget _card(Memory m) {
-    final hasPhoto = m.photoPath.isNotEmpty || m.thumb.isNotEmpty;
     return Section(
       padding: const EdgeInsets.all(0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (hasPhoto)
+          if (m.hasPhoto)
             ClipRRect(
               borderRadius:
                   const BorderRadius.vertical(top: Radius.circular(24)),
               child: SizedBox(
-                height: 190,
-                width: double.infinity,
-                child: m.photo(),
-              ),
+                  height: 190, width: double.infinity, child: m.photo()),
             ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -248,7 +224,7 @@ class _MemoryTabState extends State<MemoryTab> {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        m.place.isEmpty ? 'Không rõ địa điểm' : m.place,
+                        m.place.isEmpty ? 'Không ghi địa điểm' : m.place,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -266,13 +242,6 @@ class _MemoryTabState extends State<MemoryTab> {
                     ),
                   ],
                 ),
-                if (m.address.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(m.address,
-                        style:
-                            const TextStyle(fontSize: 12, color: C.muted)),
-                  ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -285,9 +254,13 @@ class _MemoryTabState extends State<MemoryTab> {
                             fontWeight: FontWeight.w600)),
                     if (m.by.isNotEmpty) ...[
                       const SizedBox(width: 8),
-                      Text('• ${m.by} ghim',
-                          style:
-                              const TextStyle(fontSize: 11.5, color: C.muted)),
+                      Flexible(
+                        child: Text('• ${m.by} ghim',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 11.5, color: C.muted)),
+                      ),
                     ],
                   ],
                 ),
@@ -315,96 +288,21 @@ class AddMemoryScreen extends StatefulWidget {
 }
 
 class _AddMemoryScreenState extends State<AddMemoryScreen> {
+  final _place = TextEditingController();
   final _note = TextEditingController();
   final DateTime _at = DateTime.now(); // tu dong gan luc mo man hinh
-
-  bool _locating = false;
-  String _locError = '';
-  double? _lat, _lng;
-  String _place = '', _address = '';
 
   String _photoPath = '';
   String _thumb = '';
   bool _saving = false;
 
   @override
-  void initState() {
-    super.initState();
-    _locate(); // tu dong lay vi tri ngay khi mo
-  }
-
-  @override
   void dispose() {
+    _place.dispose();
     _note.dispose();
     super.dispose();
   }
 
-  // ---------- GPS + doi toa do thanh dia chi ----------
-  Future<void> _locate() async {
-    setState(() {
-      _locating = true;
-      _locError = '';
-    });
-    try {
-      if (!await Geolocator.isLocationServiceEnabled()) {
-        throw 'Định vị đang tắt. Bật GPS trên điện thoại rồi thử lại.';
-      }
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm == LocationPermission.denied) {
-        throw 'Bạn chưa cho phép truy cập vị trí.';
-      }
-      if (perm == LocationPermission.deniedForever) {
-        throw 'Quyền vị trí đang bị chặn. Vào Cài đặt hệ thống để mở lại.';
-      }
-
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 25),
-        ),
-      );
-      _lat = pos.latitude;
-      _lng = pos.longitude;
-
-      // Doi toa do -> dia chi thuc te
-      try {
-        // geocoding 3.x: dat ngon ngu bang ham rieng, khong con tham so trong ham duoi
-        try {
-          await setLocaleIdentifier('vi_VN');
-        } catch (_) {
-          // Thiet bi khong ho tro locale nay thi dung mac dinh
-        }
-        final marks = await placemarkFromCoordinates(_lat!, _lng!);
-        if (marks.isNotEmpty) {
-          final p = marks.first;
-          final short = [p.subAdministrativeArea, p.administrativeArea]
-              .where((e) => (e ?? '').isNotEmpty)
-              .join(', ');
-          _place = short.isEmpty ? 'Vị trí hiện tại' : short;
-          _address = [
-            p.street,
-            p.subLocality,
-            p.locality,
-            p.subAdministrativeArea,
-            p.administrativeArea,
-            p.country
-          ].where((e) => (e ?? '').trim().isNotEmpty).join(', ');
-        }
-      } catch (_) {
-        // Khong co mang thi van giu toa do
-        _place = 'Vị trí hiện tại';
-        _address = '${_lat!.toStringAsFixed(5)}, ${_lng!.toStringAsFixed(5)}';
-      }
-    } catch (e) {
-      _locError = e.toString();
-    }
-    if (mounted) setState(() => _locating = false);
-  }
-
-  // ---------- Anh ----------
   Future<void> _pick(ImageSource src) async {
     try {
       final file = await ImagePicker().pickImage(
@@ -418,13 +316,12 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
       final dir = await getApplicationDocumentsDirectory();
       final name = 'mem_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final saved = await File(file.path).copy('${dir.path}/$name');
+      final thumb = await _makeThumb(file.path);
 
-      // Thu nho de dong bo sang may nguoi kia
-      final thumbFile = await _makeThumb(file.path);
-
+      if (!mounted) return;
       setState(() {
         _photoPath = saved.path;
-        _thumb = thumbFile;
+        _thumb = thumb;
       });
     } catch (e) {
       if (!mounted) return;
@@ -446,17 +343,16 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
   }
 
   Future<void> _save() async {
-    if (_note.text.trim().isEmpty && _photoPath.isEmpty && _lat == null) {
+    if (_note.text.trim().isEmpty &&
+        _photoPath.isEmpty &&
+        _place.text.trim().isEmpty) {
       toast(context, 'Thêm ảnh hoặc vài dòng ghi chú nhé');
       return;
     }
     setState(() => _saving = true);
     await MemoryStore.add(Memory(
       id: '${DateTime.now().millisecondsSinceEpoch}_${Store.str('uid')}',
-      lat: _lat ?? 0,
-      lng: _lng ?? 0,
-      place: _place,
-      address: _address,
+      place: _place.text.trim(),
       at: _at.toIso8601String(),
       photoPath: _photoPath,
       thumb: _thumb,
@@ -470,67 +366,12 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
   @override
   Widget build(BuildContext context) {
     final hasPhoto = _photoPath.isNotEmpty;
+    final goiY = recentPlaces();
+
     return Scaffold(
       appBar: AppBar(title: const Text('Ghim kỷ niệm')),
       body: ListView(
         children: [
-          // --- Vi tri tu dong
-          Section(
-            title: 'Vị trí',
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: C.pink.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: _locating
-                      ? const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2.2, color: C.pink),
-                        )
-                      : const Icon(Icons.my_location, color: C.pink),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: _locating
-                      ? const Text('Đang lấy vị trí...',
-                          style: TextStyle(fontSize: 13, color: C.muted))
-                      : _locError.isNotEmpty
-                          ? Text(_locError,
-                              style: const TextStyle(
-                                  fontSize: 12.5, color: Colors.redAccent))
-                          : Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                    _place.isEmpty
-                                        ? 'Chưa có vị trí'
-                                        : _place,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w700)),
-                                if (_address.isNotEmpty)
-                                  Padding(
-                                    padding: const EdgeInsets.only(top: 2),
-                                    child: Text(_address,
-                                        style: const TextStyle(
-                                            fontSize: 12, color: C.muted)),
-                                  ),
-                              ],
-                            ),
-                ),
-                IconButton(
-                  tooltip: 'Lấy lại vị trí',
-                  icon: const Icon(Icons.refresh, color: C.muted),
-                  onPressed: _locating ? null : _locate,
-                ),
-              ],
-            ),
-          ),
-
           // --- Thoi gian tu dong
           Section(
             child: Row(
@@ -552,12 +393,58 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                       const Text('Thời gian',
                           style: TextStyle(fontWeight: FontWeight.w700)),
                       const SizedBox(height: 2),
-                      Text(prettyDateTime(_at),
+                      Text('${prettyDateTime(_at)}  (tự động)',
                           style:
                               const TextStyle(fontSize: 12.5, color: C.muted)),
                     ],
                   ),
                 ),
+              ],
+            ),
+          ),
+
+          // --- Dia diem nhap tay
+          Section(
+            title: 'Ở đâu?',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _place,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                    hintText: 'VD: Cà phê Cộng, Quận 7',
+                    prefixIcon: Icon(Icons.place_outlined, color: C.muted),
+                  ),
+                ),
+                if (goiY.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Text('Nơi đã ghim trước đây',
+                      style: TextStyle(fontSize: 12, color: C.muted)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: goiY
+                        .map((p) => GestureDetector(
+                              onTap: () => setState(() => _place.text = p),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: C.soft,
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                                child: Text(p,
+                                    style: const TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: C.muted)),
+                              ),
+                            ))
+                        .toList(),
+                  ),
+                ],
               ],
             ),
           ),
@@ -590,7 +477,8 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () => _pick(ImageSource.gallery),
-                        icon: const Icon(Icons.photo_library_outlined, size: 18),
+                        icon:
+                            const Icon(Icons.photo_library_outlined, size: 18),
                         label: const Text('Thư viện'),
                       ),
                     ),
@@ -606,6 +494,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
             child: TextField(
               controller: _note,
               maxLines: 5,
+              textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
                   hintText: 'Viết lại cảm xúc, câu nói, món đã ăn...'),
             ),
@@ -621,142 +510,6 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ============================================================
-// MAN HINH BAN DO
-// ============================================================
-class MemoryMapScreen extends StatefulWidget {
-  final List<Memory> items;
-  const MemoryMapScreen({super.key, required this.items});
-  @override
-  State<MemoryMapScreen> createState() => _MemoryMapScreenState();
-}
-
-class _MemoryMapScreenState extends State<MemoryMapScreen> {
-  final _map = MapController();
-
-  LatLng get _center {
-    final lat = widget.items.map((e) => e.lat).reduce((a, b) => a + b) /
-        widget.items.length;
-    final lng = widget.items.map((e) => e.lng).reduce((a, b) => a + b) /
-        widget.items.length;
-    return LatLng(lat, lng);
-  }
-
-  void _openDetail(Memory m) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (m.photoPath.isNotEmpty || m.thumb.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
-                  child: SizedBox(
-                      height: 200,
-                      width: double.infinity,
-                      child: m.photo()),
-                ),
-              const SizedBox(height: 14),
-              Text(m.place.isEmpty ? 'Kỷ niệm' : m.place,
-                  style: const TextStyle(
-                      fontSize: 17, fontWeight: FontWeight.w800)),
-              const SizedBox(height: 4),
-              Text('${prettyDateTime(m.time)}'
-                  '${m.by.isEmpty ? '' : '  •  ${m.by} ghim'}',
-                  style: const TextStyle(fontSize: 12.5, color: C.purple)),
-              if (m.address.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(m.address,
-                    style: const TextStyle(fontSize: 12, color: C.muted)),
-              ],
-              if (m.note.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(m.note,
-                    style: const TextStyle(fontSize: 14, height: 1.55)),
-              ],
-              const SizedBox(height: 10),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Bản đồ kỷ niệm')),
-      body: FlutterMap(
-        mapController: _map,
-        options: MapOptions(
-          initialCenter: _center,
-          initialZoom: 11,
-          minZoom: 3,
-          maxZoom: 18,
-        ),
-        children: [
-          TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.lovesync.app',
-          ),
-          MarkerLayer(
-            markers: widget.items
-                .map((m) => Marker(
-                      point: LatLng(m.lat, m.lng),
-                      width: 54,
-                      height: 62,
-                      child: GestureDetector(
-                        onTap: () => _openDetail(m),
-                        child: Column(
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.white,
-                                border: Border.all(color: C.pink, width: 2.5),
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: Colors.black.withOpacity(0.18),
-                                      blurRadius: 6)
-                                ],
-                              ),
-                              child: ClipOval(
-                                child: (m.photoPath.isNotEmpty ||
-                                        m.thumb.isNotEmpty)
-                                    ? m.photo(w: 44, h: 44)
-                                    : const Icon(Icons.favorite,
-                                        color: C.pink, size: 20),
-                              ),
-                            ),
-                            const Icon(Icons.arrow_drop_down,
-                                color: C.pink, size: 20),
-                          ],
-                        ),
-                      ),
-                    ))
-                .toList(),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.small(
-        backgroundColor: C.pink,
-        onPressed: () => _map.move(_center, 11),
-        child: const Icon(Icons.center_focus_strong, color: Colors.white),
       ),
     );
   }

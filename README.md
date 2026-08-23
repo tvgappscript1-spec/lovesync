@@ -65,69 +65,34 @@ Chưa chọn emoji thì app hiển thị chữ cái đầu của tên trên nề
 
 Ô "Tên người ấy" chỉ dùng khi chưa ghép đôi. Sau khi ghép, tên và avatar của người kia luôn lấy theo máy của họ.
 
-## Bản đồ kỷ niệm (Love Memories)
+## Kỷ niệm (Love Memories)
 
-Vào tab **Của mình → Kỷ niệm → Ghim khoảnh khắc này**. Màn hình mở ra là app đã tự làm sẵn 2 việc:
+Vào tab **Của mình → Kỷ niệm → Ghim khoảnh khắc này**:
 
-- **Vị trí**: tự bật GPS lấy toạ độ, rồi đổi sang địa chỉ tiếng Việt (phường, quận, tỉnh) bằng `geocoding`. Có nút 🔄 để lấy lại nếu bắt sóng chậm. Mất mạng thì vẫn giữ toạ độ và hiển thị dạng số.
-- **Thời gian**: gán `DateTime.now()` ngay lúc mở màn hình, không phải chọn.
+- **Thời gian**: tự gán `DateTime.now()` ngay khi mở màn hình, không phải chọn.
+- **Địa điểm**: gõ tay. Những nơi đã ghim trước đó hiện thành nút bấm một chạm, nên lần sau tới quán cũ chỉ cần chạm là xong.
+- **Ảnh**: chụp trực tiếp hoặc chọn từ thư viện.
+- **Ghi chú**: viết cảm xúc, câu nói, món đã ăn.
 
-Bạn chỉ cần bấm **Chụp ảnh** (hoặc chọn từ **Thư viện**) và viết ghi chú, rồi **Lưu kỷ niệm**.
+### Vì sao bỏ GPS và bản đồ
 
-Xem lại theo hai cách: **timeline** xếp mới nhất lên đầu, hoặc chạm banner hồng để mở **bản đồ** — mỗi kỷ niệm là một pin hình tròn có ảnh thu nhỏ, chạm vào pin hiện ảnh lớn kèm ghi chú.
+Bản đầu dùng `geolocator` + `geocoding` để tự lấy toạ độ và đổi thành địa chỉ, kèm `flutter_map` hiển thị pin. Ba thư viện này là nguồn gốc của hầu hết lỗi Gradle khi build APK (xung đột compileSdk, NDK, AAR metadata). Đổi lại chỉ tiết kiệm được vài giây gõ tên quán.
+
+Đã gỡ cả ba. Dự án giờ chỉ còn `image_picker` và `path_provider` là plugin native, build nhẹ và ổn định hơn nhiều.
 
 ### Cách ảnh được lưu và đồng bộ
 
 | Thành phần | Nơi lưu | Có sang máy người ấy không |
 |---|---|---|
-| Toạ độ, địa chỉ, ngày giờ, ghi chú | SharedPreferences + Firebase | Có |
+| Địa điểm, thời gian, ghi chú | SharedPreferences + Firebase | Có |
 | Ảnh gốc (~1280px) | Thư mục riêng của app trên máy chụp | Không |
 | Ảnh thu nhỏ 280px (~15 KB, base64) | Firebase, trong cùng bản ghi | Có |
 
-Máy người kia hiển thị bản thu nhỏ, đủ để xem trên điện thoại. Làm vậy để tránh phải bật Firebase Storage (dịch vụ này nay yêu cầu gắn thẻ thanh toán) và để mỗi lần đồng bộ không bị nặng.
+Làm vậy để tránh phải bật Firebase Storage (nay yêu cầu gắn thẻ thanh toán) và giữ mỗi vòng đồng bộ đủ nhẹ.
 
-### Vì sao dùng flutter_map thay vì Google Maps
+### Quyền ứng dụng
 
-`google_maps_flutter` bắt buộc nhúng API key vào `AndroidManifest.xml`, mà workflow của bạn sinh lại thư mục `android/` mỗi lần build nên key sẽ mất. `flutter_map` lấy tile từ OpenStreetMap, không cần key, không cần cấu hình gì thêm.
-
-### Quyền ứng dụng — workflow đã tự thêm
-
-File `build.yml` mới tự chèn vào `AndroidManifest.xml`:
-
-```xml
-<uses-permission android:name="android.permission.INTERNET"/>
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-<uses-permission android:name="android.permission.CAMERA"/>
-<uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
-<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-<uses-feature android:name="android.hardware.camera" android:required="false"/>
-<uses-feature android:name="android.hardware.location.gps" android:required="false"/>
-```
-
-và nâng `minSdk = 23` trong `android/app/build.gradle` (bắt buộc cho `geolocator`).
-Nếu bạn build bằng Project IDX hay FlutLab thì phải tự dán đoạn XML trên vào ngay dưới thẻ `<manifest ...>`.
-
-## Duo Quiz — bộ 3 câu đổi mới mỗi ngày
-
-Ngân hàng **60 câu** chia 5 chủ đề: Tình yêu & Thói quen, Tài chính & Chi tiêu, Hôn nhân & Gia đình, Ngôn ngữ tình yêu, Giá trị sống & Cảm xúc.
-
-Mỗi ngày app mở ra 3 câu mới dưới dạng thẻ vuốt ngang. Chọn xong một câu là thẻ tự trượt sang câu kế tiếp; thẻ cuối cùng là màn hình kết quả với vòng tròn % chạy dần và **tim bay** khi đạt từ 67% trở lên. Nút *So đáp án hai đứa* mở màn hình đối chiếu song song: cột hồng là bạn, cột tím là người ấy.
-
-Icon 🕐 góc trên mở **Lịch sử thấu hiểu** — 3 tuần gần nhất, mỗi ngày một huy hiệu: 👑 Tri kỷ (100%), 💞 Ăn ý (≥67%), 🌤️ Khá hợp (≥34%), 🌱 Đang hiểu nhau. Chạm vào một ngày để xem lại đáp án của ngày đó.
-
-### Cách hai máy luôn nhận cùng bộ câu hỏi
-
-Không đồng bộ danh sách câu hỏi qua Firebase. Thay vào đó bộ 3 câu được tính từ chính ngày hiện tại:
-
-```dart
-_shuffled = List.from(quizBank)..shuffle(Random(20260101)); // seed cố định
-start = (dayIndex(hôm nay) * 3) % 60;                        // lấy 3 câu liên tiếp
-```
-
-Seed cố định nên hai máy xáo trộn ra cùng một thứ tự, cùng ngày thì cùng `start` — luôn trùng nhau, kể cả khi đang offline. Ngân hàng 60 câu chia 3 câu/ngày nên **20 ngày mới lặp lại**.
-
-Đáp án vẫn lưu ở key `quiz_me` như cũ, nghĩa là `sync.dart` không phải sửa gì. Lịch sử được dựng lại bằng cách tính ngược bộ câu hỏi của từng ngày rồi tra trong đáp án đã lưu — không tốn thêm dung lượng lưu trữ.
+Đã đặt sẵn trong `android/app/src/main/AndroidManifest.xml`: `INTERNET`, `CAMERA`, `READ_MEDIA_IMAGES`, `READ_EXTERNAL_STORAGE` (chỉ tới Android 12). Không còn quyền vị trí.
 
 ## Cơ chế đồng bộ (để bạn biết mà xử lý khi có vấn đề)
 
@@ -160,8 +125,4 @@ Nếu sau này muốn chặt chẽ hơn, bước nâng cấp là bật **Firebas
 | Sai Database URL | Copy thiếu / thừa ký tự | Copy lại từ tab Data, không có dấu `/` ở cuối |
 | Đã đồng bộ, chưa thấy người ấy vào phòng | Máy kia chưa bấm Kết nối, hoặc mã lệch 1 ký tự | So lại từng ký tự mã trên hai máy |
 | Mã cặp đôi phải từ 12 ký tự | Rule chặn mã ngắn | Bấm nút xúc xắc sinh mã mới |
-| "Định vị đang tắt" | GPS chưa bật | Vuốt thanh thông báo, bật Vị trí |
-| "Quyền vị trí đang bị chặn" | Đã từ chối vĩnh viễn | Cài đặt máy → Ứng dụng → LoveSync → Quyền → Vị trí |
-| Địa chỉ chỉ hiện toạ độ số | Không có mạng lúc ghim | Kỷ niệm vẫn lưu đúng chỗ, chỉ thiếu tên địa điểm |
-| Bản đồ trắng, không có tile | Mất mạng | Tile lấy từ OpenStreetMap, cần Internet |
 | Máy người ấy không thấy ảnh | Bản ghi cũ chưa có ảnh thu nhỏ | Ảnh ghim từ bản này trở đi mới đồng bộ được |
