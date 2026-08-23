@@ -1,0 +1,28 @@
+name: lovesync
+description: LoveSync - ung dung dong bo cam xuc va thau hieu danh cho cap doi.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  shared_preferences: ^2.2.3
+  http: ^1.2.2
+  # --- Ban do ky niem ---
+  geolocator: ^13.0.2         # lay toa do GPS
+  geocoding: ^3.0.0           # doi toa do -> dia chi
+  image_picker: ^1.1.2        # chup anh / chon tu thu vien
+  path_provider: ^2.1.5       # luu anh vao thu muc rieng cua app
+  image: ^4.3.0               # thu nho anh de dong bo (thuan Dart)
+  flutter_map: ^7.0.2         # ban do OpenStreetMap, khong can API key
+  latlong2: ^0.9.1            # kieu toa do cho flutter_map
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
