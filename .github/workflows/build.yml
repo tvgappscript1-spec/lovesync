@@ -39,12 +39,27 @@ jobs:
 
       - name: Tao Gradle wrapper (file .jar khong duoc commit)
         run: |
-          cd android
-          if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version 8.13 --distribution-type all
-          fi
-          chmod +x gradlew
-          ./gradlew --version
+          # Sinh wrapper o thu muc TRONG, khong chay trong android/.
+          # Neu chay trong android/ thi Gradle se doc settings.gradle.kts,
+          # file nay can local.properties - ma chi Flutter moi tao ra luc build.
+          mkdir -p /tmp/wrap && cd /tmp/wrap
+          gradle wrapper --gradle-version 8.13 --distribution-type all
+          cd "$GITHUB_WORKSPACE"
+          cp /tmp/wrap/gradlew android/gradlew
+          cp /tmp/wrap/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/
+          chmod +x android/gradlew
+          echo "--- gradle-wrapper.properties dang dung ---"
+          cat android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Tao local.properties
+        run: |
+          FLUTTER_BIN="$(which flutter)"
+          FLUTTER_SDK="$(dirname "$(dirname "$FLUTTER_BIN")")"
+          {
+            echo "flutter.sdk=$FLUTTER_SDK"
+            echo "sdk.dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT}}"
+          } > android/local.properties
+          cat android/local.properties
 
       - name: Tai thu vien Flutter
         run: flutter pub get
