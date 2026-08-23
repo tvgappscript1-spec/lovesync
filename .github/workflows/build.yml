@@ -45,7 +45,7 @@ jobs:
           mkdir -p /tmp/wrap && cd /tmp/wrap
           # Gradle 9 doi thu muc phai co file settings -> tao file rong
           : > settings.gradle.kts
-          gradle wrapper --gradle-version 8.13 --distribution-type all
+          gradle wrapper --gradle-version 8.14.3 --distribution-type all
           cd "$GITHUB_WORKSPACE"
           cp /tmp/wrap/gradlew android/gradlew
           cp /tmp/wrap/gradle/wrapper/gradle-wrapper.jar android/gradle/wrapper/

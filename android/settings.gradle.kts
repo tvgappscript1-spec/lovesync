@@ -18,7 +18,9 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "8.11.1" apply false
+    // Ghim ban AGP 8.x. Khong dung AGP 9 vi no chi doc DSL moi,
+    // Flutter Gradle plugin hien tai chua tuong thich.
+    id("com.android.application") version "8.12.0" apply false
     id("org.jetbrains.kotlin.android") version "2.1.20" apply false
 }
 

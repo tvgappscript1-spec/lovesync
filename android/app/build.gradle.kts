@@ -24,7 +24,7 @@ android {
 
     defaultConfig {
         applicationId = "com.lovesync.app"
-        minSdk = 23      // geolocator va image_picker yeu cau toi thieu 21
+        minSdk = 23      // image_picker yeu cau toi thieu 21
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
