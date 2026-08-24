@@ -148,131 +148,299 @@ class _MemoryTabState extends State<MemoryTab> {
     final list = MemoryStore.all();
     final places = list.map((e) => e.place).where((e) => e.isNotEmpty).toSet();
 
-    return ListView(
-      children: [
-        Section(
-          padding: const EdgeInsets.all(0),
-          child: Container(
-            height: 130,
-            decoration: BoxDecoration(
-              gradient: C.grad,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('💞', style: TextStyle(fontSize: 30)),
-                  const SizedBox(height: 8),
-                  Text(
-                      list.isEmpty
-                          ? 'Chưa có kỷ niệm nào'
-                          : '${list.length} kỷ niệm • ${places.length} nơi đã đi qua',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15)),
-                ],
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Column(
+            children: [
+              Section(
+                padding: const EdgeInsets.all(0),
+                child: Container(
+                  height: 118,
+                  decoration: BoxDecoration(
+                    gradient: C.grad,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('💞', style: TextStyle(fontSize: 26)),
+                        const SizedBox(height: 6),
+                        Text(
+                            list.isEmpty
+                                ? 'Chưa có kỷ niệm nào'
+                                : '${list.length} kỷ niệm • ${places.length} nơi đã đi qua',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15)),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-        ),
-
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 2, 16, 14),
-          child: GradientButton(
-            label: 'Ghim khoảnh khắc này',
-            icon: Icons.add_a_photo_outlined,
-            onTap: _openAdd,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 2, 16, 16),
+                child: GradientButton(
+                  label: 'Ghim khoảnh khắc này',
+                  icon: Icons.add_a_photo_outlined,
+                  onTap: _openAdd,
+                ),
+              ),
+            ],
           ),
         ),
 
         if (list.isEmpty)
-          const EmptyState(
-            emoji: '📍',
-            text:
-                'Đang đi chơi cùng nhau?\nBấm nút trên, chụp một tấm và viết vài dòng.',
+          const SliverToBoxAdapter(
+            child: EmptyState(
+              emoji: '📍',
+              text:
+                  'Đang đi chơi cùng nhau?\nBấm nút trên, chụp một tấm và viết vài dòng.',
+            ),
+          )
+        else
+          // Luoi o vuong kieu Locket: nhin duoc nhieu ky niem cung luc,
+          // cham vao mot o de xem anh lon va ghi chu day du.
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
+            sliver: SliverGrid(
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+              ),
+              delegate: SliverChildBuilderDelegate(
+                (_, i) => _gridTile(list, i),
+                childCount: list.length,
+              ),
+            ),
           ),
-
-        ...list.map(_card),
-        const SizedBox(height: 24),
       ],
     );
   }
 
-  Widget _card(Memory m) {
-    return Section(
-      padding: const EdgeInsets.all(0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (m.hasPhoto)
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(24)),
-              child: SizedBox(
-                  height: 190, width: double.infinity, child: m.photo()),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.place, size: 16, color: C.pink),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        m.place.isEmpty ? 'Không ghi địa điểm' : m.place,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 15),
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 18, color: C.muted),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () async {
-                        await MemoryStore.remove(m.id);
-                        if (mounted) setState(() {});
-                      },
-                    ),
-                  ],
+  Widget _gridTile(List<Memory> list, int i) {
+    final m = list[i];
+    return GestureDetector(
+      onTap: () async {
+        final changed = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+              builder: (_) => MemoryDetailScreen(items: list, index: i)),
+        );
+        if (changed == true && mounted) setState(() {});
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (m.hasPhoto)
+              m.photo()
+            else
+              Container(
+                decoration: BoxDecoration(gradient: C.gradSoft),
+                alignment: Alignment.center,
+                padding: const EdgeInsets.all(8),
+                child: Text(
+                  m.note.isNotEmpty ? m.note : m.place,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 11, color: C.ink, height: 1.35),
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.schedule, size: 14, color: C.purple),
-                    const SizedBox(width: 6),
-                    Text(prettyDateTime(m.time),
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: C.purple,
-                            fontWeight: FontWeight.w600)),
-                    if (m.by.isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text('• ${m.by} ghim',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 11.5, color: C.muted)),
-                      ),
+              ),
+            // Dai mo duoi de chu ngay luon doc duoc
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(6, 14, 6, 6),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withOpacity(m.hasPhoto ? 0.55 : 0.30),
                     ],
-                  ],
+                  ),
                 ),
-                if (m.note.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(m.note,
-                      style: const TextStyle(fontSize: 13.5, height: 1.5)),
-                ],
-              ],
+                child: Text(
+                  '${two(m.time.day)}/${two(m.time.month)}',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700),
+                ),
+              ),
             ),
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// MAN HINH XEM CHI TIET (vuot ngang de xem ky niem truoc/sau)
+// ============================================================
+class MemoryDetailScreen extends StatefulWidget {
+  final List<Memory> items;
+  final int index;
+  const MemoryDetailScreen(
+      {super.key, required this.items, required this.index});
+
+  @override
+  State<MemoryDetailScreen> createState() => _MemoryDetailScreenState();
+}
+
+class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
+  late final PageController _page = PageController(initialPage: widget.index);
+  late List<Memory> _items = List.of(widget.items);
+  bool _changed = false;
+  late int _cur = widget.index;
+
+  @override
+  void dispose() {
+    _page.dispose();
+    super.dispose();
+  }
+
+  Future<void> _delete(Memory m) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Xoá kỷ niệm này?'),
+        content: const Text('Ảnh và ghi chú sẽ mất trên cả hai máy.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Huỷ')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Xoá')),
         ],
+      ),
+    );
+    if (ok != true) return;
+    await MemoryStore.remove(m.id);
+    if (!mounted) return;
+    _changed = true;
+    setState(() => _items = MemoryStore.all());
+    if (_items.isEmpty) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_items.isEmpty) return const SizedBox.shrink();
+
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {},
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          title: Text('${_cur + 1}/${_items.length}',
+              style: const TextStyle(fontSize: 15)),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context, _changed),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => _delete(_items[_cur]),
+            ),
+          ],
+        ),
+        body: PageView.builder(
+          controller: _page,
+          itemCount: _items.length,
+          onPageChanged: (i) => setState(() => _cur = i),
+          itemBuilder: (_, i) {
+            final m = _items[i];
+            return SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (m.hasPhoto)
+                    // Cho phep phong to thu nho bang hai ngon tay
+                    InteractiveViewer(
+                      minScale: 1,
+                      maxScale: 4,
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: m.photo(fit: BoxFit.fitWidth),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.place, size: 17, color: C.pink),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                m.place.isEmpty
+                                    ? 'Không ghi địa điểm'
+                                    : m.place,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 17),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.schedule,
+                                size: 14, color: C.lilac),
+                            const SizedBox(width: 6),
+                            Text(prettyDateTime(m.time),
+                                style: const TextStyle(
+                                    fontSize: 12.5, color: C.lilac)),
+                            if (m.by.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text('• ${m.by} ghim',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 12, color: Colors.white54)),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (m.note.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Text(m.note,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  height: 1.6)),
+                        ],
+                        const SizedBox(height: 30),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

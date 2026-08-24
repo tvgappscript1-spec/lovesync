@@ -67,18 +67,23 @@ Chưa chọn emoji thì app hiển thị chữ cái đầu của tên trên nề
 
 ## Kỷ niệm (Love Memories)
 
-Vào tab **Của mình → Kỷ niệm → Ghim khoảnh khắc này**:
+Hiển thị dạng **lưới ô vuông 3 cột kiểu Locket** — 9 kỷ niệm trong một màn hình thay vì phải cuộn từng thẻ dọc.
 
-- **Thời gian**: tự gán `DateTime.now()` ngay khi mở màn hình, không phải chọn.
-- **Địa điểm**: gõ tay. Những nơi đã ghim trước đó hiện thành nút bấm một chạm, nên lần sau tới quán cũ chỉ cần chạm là xong.
+- Chạm một ô để mở ảnh toàn màn hình trên nền đen.
+- Vuốt ngang để xem kỷ niệm trước/sau, không phải quay ra lưới.
+- Chụm hai ngón để phóng to ảnh.
+- Ô nào không có ảnh thì hiện ghi chú trên nền pastel, không để trống.
+- Góc dưới mỗi ô có ngày/tháng trên dải mờ, luôn đọc được dù ảnh sáng hay tối.
+- Nút xoá nằm trong màn hình chi tiết, có hỏi xác nhận — tránh xoá nhầm khi lướt.
+
+Khi ghim mới:
+- **Thời gian**: tự gán `DateTime.now()` ngay khi mở màn hình.
+- **Địa điểm**: gõ tay. Nơi đã ghim trước đó hiện thành nút bấm một chạm.
 - **Ảnh**: chụp trực tiếp hoặc chọn từ thư viện.
-- **Ghi chú**: viết cảm xúc, câu nói, món đã ăn.
 
 ### Vì sao bỏ GPS và bản đồ
 
-Bản đầu dùng `geolocator` + `geocoding` để tự lấy toạ độ và đổi thành địa chỉ, kèm `flutter_map` hiển thị pin. Ba thư viện này là nguồn gốc của hầu hết lỗi Gradle khi build APK (xung đột compileSdk, NDK, AAR metadata). Đổi lại chỉ tiết kiệm được vài giây gõ tên quán.
-
-Đã gỡ cả ba. Dự án giờ chỉ còn `image_picker` và `path_provider` là plugin native, build nhẹ và ổn định hơn nhiều.
+Bản đầu dùng `geolocator` + `geocoding` để tự lấy toạ độ và `flutter_map` hiển thị pin. Ba thư viện này là nguồn gốc của hầu hết lỗi Gradle khi build APK. Đổi lại chỉ tiết kiệm được vài giây gõ tên quán, nên đã gỡ cả ba.
 
 ### Cách ảnh được lưu và đồng bộ
 
@@ -89,23 +94,6 @@ Bản đầu dùng `geolocator` + `geocoding` để tự lấy toạ độ và �
 | Ảnh thu nhỏ 280px (~15 KB, base64) | Firebase, trong cùng bản ghi | Có |
 
 Làm vậy để tránh phải bật Firebase Storage (nay yêu cầu gắn thẻ thanh toán) và giữ mỗi vòng đồng bộ đủ nhẹ.
-
-### Quyền ứng dụng
-
-Đã đặt sẵn trong `android/app/src/main/AndroidManifest.xml`: `INTERNET`, `CAMERA`, `READ_MEDIA_IMAGES`, `READ_EXTERNAL_STORAGE` (chỉ tới Android 12). Không còn quyền vị trí.
-
-## Thủ thỉ (nhắn tin)
-
-Tab 💬 giữa Cảm xúc và Duo Quiz. Dùng chung Firebase Realtime Database đã cấu hình, không cần thêm dịch vụ nào.
-
-- Bong bóng chat: tin của bạn nền gradient hồng bên phải, tin người ấy nền trắng bên trái.
-- Tin chỉ có emoji (≤3 ký tự) hiển thị to, không bọc bong bóng.
-- Hàng **câu gửi nhanh** phía trên ô nhập: chạm là gửi luôn, không phải gõ.
-- Khi đang mở tab này, app tải tin mới mỗi **5 giây**; các tab khác vẫn theo nhịp 30 giây.
-- Huy hiệu số tin chưa đọc hiện trên biểu tượng tab, và thẻ tin mới nhất hiện ngay ở màn Cảm xúc.
-- Gửi lúc mất mạng: tin vẫn hiện trên máy bạn nhưng chưa lên server. App báo rõ, gửi lại khi có mạng.
-
-Dữ liệu nằm ở `couples/{mã cặp đôi}/chat/{ts}_{uid}`, giữ 300 tin gần nhất cho nhẹ máy. Rules hiện tại đã phủ nhánh này, không cần sửa gì trên Firebase.
 
 ## Cơ chế đồng bộ (để bạn biết mà xử lý khi có vấn đề)
 
