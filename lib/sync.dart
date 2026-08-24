@@ -165,6 +165,7 @@ class Sync {
 
       applyingRemote = false;
       await pushMine();
+      await pullChat();
 
       status.value = 'Đồng bộ lúc ${_now()}';
       revision.value++; // bao cho cac man hinh ve lai
@@ -186,6 +187,83 @@ class Sync {
   static String _now() {
     final d = DateTime.now();
     return '${two(d.hour)}:${two(d.minute)}';
+  }
+
+  // ----------------------------------------------------------
+  // NHAN TIN
+  // ----------------------------------------------------------
+  /// Gui mot tin nhan. Luu xuong may truoc de hien ngay, roi day len Firebase.
+  static Future<String?> sendMessage(String text) async {
+    if (!enabled) return 'Chưa ghép đôi nên chưa gửi được';
+    final t = text.trim();
+    if (t.isEmpty) return null;
+
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final id = '${ts}_$uid';
+    final msg = {
+      'id': id,
+      'by': uid,
+      'name': Store.myName,
+      'avatar': Store.myAvatar,
+      'text': t,
+      'ts': ts,
+    };
+
+    // Hien ngay tren man hinh, khong cho mang
+    final local = Store.listMap('chat')..add(msg);
+    await Store.setListMap('chat', local);
+    await Store.setStr('chat_read_ts', '$ts');
+    revision.value++;
+
+    try {
+      await http
+          .put(_u('chat/$id'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(msg))
+          .timeout(const Duration(seconds: 20));
+      return null;
+    } catch (_) {
+      return 'Mất mạng, tin sẽ được gửi lại khi có kết nối';
+    }
+  }
+
+  static Future<void> pullChat() async {
+    if (!enabled) return;
+    try {
+      final res = await http
+          .get(Uri.parse('$dbUrl/couples/$code/chat.json'))
+          .timeout(const Duration(seconds: 20));
+      if (res.statusCode != 200) return;
+      final raw = jsonDecode(utf8.decode(res.bodyBytes));
+      if (raw is! Map) return;
+
+      final list = raw.values
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList()
+        ..sort((a, b) =>
+            ((a['ts'] as num?) ?? 0).compareTo((b['ts'] as num?) ?? 0));
+
+      // Giu 300 tin gan nhat cho nhe may
+      final trimmed = list.length > 300 ? list.sublist(list.length - 300) : list;
+      await Store.setListMap('chat', trimmed);
+    } catch (_) {}
+  }
+
+  /// So tin cua nguoi kia ma minh chua doc.
+  static int unreadCount() {
+    final readTs = int.tryParse(Store.str('chat_read_ts', '0')) ?? 0;
+    return Store.listMap('chat')
+        .where((m) =>
+            m['by'] != uid && (((m['ts'] as num?) ?? 0).toInt()) > readTs)
+        .length;
+  }
+
+  static Future<void> markChatRead() async {
+    final list = Store.listMap('chat');
+    if (list.isEmpty) return;
+    final last = ((list.last['ts'] as num?) ?? 0).toInt();
+    await Store.setStr('chat_read_ts', '$last');
+    revision.value++;
   }
 
   // ----------------------------------------------------------

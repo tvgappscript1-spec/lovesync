@@ -94,6 +94,19 @@ Làm vậy để tránh phải bật Firebase Storage (nay yêu cầu gắn th�
 
 Đã đặt sẵn trong `android/app/src/main/AndroidManifest.xml`: `INTERNET`, `CAMERA`, `READ_MEDIA_IMAGES`, `READ_EXTERNAL_STORAGE` (chỉ tới Android 12). Không còn quyền vị trí.
 
+## Thủ thỉ (nhắn tin)
+
+Tab 💬 giữa Cảm xúc và Duo Quiz. Dùng chung Firebase Realtime Database đã cấu hình, không cần thêm dịch vụ nào.
+
+- Bong bóng chat: tin của bạn nền gradient hồng bên phải, tin người ấy nền trắng bên trái.
+- Tin chỉ có emoji (≤3 ký tự) hiển thị to, không bọc bong bóng.
+- Hàng **câu gửi nhanh** phía trên ô nhập: chạm là gửi luôn, không phải gõ.
+- Khi đang mở tab này, app tải tin mới mỗi **5 giây**; các tab khác vẫn theo nhịp 30 giây.
+- Huy hiệu số tin chưa đọc hiện trên biểu tượng tab, và thẻ tin mới nhất hiện ngay ở màn Cảm xúc.
+- Gửi lúc mất mạng: tin vẫn hiện trên máy bạn nhưng chưa lên server. App báo rõ, gửi lại khi có mạng.
+
+Dữ liệu nằm ở `couples/{mã cặp đôi}/chat/{ts}_{uid}`, giữ 300 tin gần nhất cho nhẹ máy. Rules hiện tại đã phủ nhánh này, không cần sửa gì trên Firebase.
+
 ## Cơ chế đồng bộ (để bạn biết mà xử lý khi có vấn đề)
 
 ```

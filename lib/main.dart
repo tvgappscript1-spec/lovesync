@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'quiz.dart';
 import 'extras.dart';
+import 'chat.dart';
 import 'sync.dart';
 
 // ============================================================
@@ -309,11 +310,17 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    Sync.revision.addListener(_onSync);
+  }
+
+  void _onSync() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    Sync.revision.removeListener(_onSync);
     super.dispose();
   }
 
@@ -331,32 +338,50 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final pages = const [
       MoodScreen(),
+      ChatScreen(),
       QuizScreen(),
       CoachScreen(),
       ExtrasScreen(),
     ];
+    final unread = Sync.unreadCount();
+
     return Scaffold(
       body: SafeArea(bottom: false, child: pages[_index]),
       bottomNavigationBar: NavigationBar(
         height: 68,
         backgroundColor: Colors.white,
         indicatorColor: C.pink.withOpacity(0.15),
+        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
+        onDestinationSelected: (i) {
+          setState(() => _index = i);
+          if (i == 1) Sync.markChatRead();
+        },
+        destinations: [
+          const NavigationDestination(
               icon: Icon(Icons.favorite_border),
               selectedIcon: Icon(Icons.favorite),
               label: 'Cảm xúc'),
           NavigationDestination(
+            icon: unread > 0
+                ? Badge(
+                    label: Text('$unread'),
+                    backgroundColor: C.pink,
+                    child: const Icon(Icons.chat_bubble_outline),
+                  )
+                : const Icon(Icons.chat_bubble_outline),
+            selectedIcon: const Icon(Icons.chat_bubble),
+            label: 'Thủ thỉ',
+          ),
+          const NavigationDestination(
               icon: Icon(Icons.quiz_outlined),
               selectedIcon: Icon(Icons.quiz),
               label: 'Duo Quiz'),
-          NavigationDestination(
+          const NavigationDestination(
               icon: Icon(Icons.auto_awesome_outlined),
               selectedIcon: Icon(Icons.auto_awesome),
               label: 'AI Coach'),
-          NavigationDestination(
+          const NavigationDestination(
               icon: Icon(Icons.widgets_outlined),
               selectedIcon: Icon(Icons.widgets),
               label: 'Của mình'),
@@ -827,6 +852,8 @@ class _MoodScreenState extends State<MoodScreen> {
 
           if (mine != null && theirs != null) _syncBanner(mine, theirs),
 
+          _lastMessageCard(),
+
           // Nhap cam xuc
           Section(
             title: 'Hôm nay bạn thấy thế nào?',
@@ -929,6 +956,73 @@ class _MoodScreenState extends State<MoodScreen> {
               ),
             ),
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  /// The tin nhan moi nhat: cham vao la nhay sang tab Thu thi.
+  Widget _lastMessageCard() {
+    final chat = Store.listMap('chat')
+      ..sort((a, b) =>
+          ((a['ts'] as num?) ?? 0).compareTo((b['ts'] as num?) ?? 0));
+    if (chat.isEmpty) return const SizedBox.shrink();
+
+    final m = chat.last;
+    final mine = m['by'] == Sync.uid;
+    final ts = ((m['ts'] as num?) ?? 0).toInt();
+    final t = DateTime.fromMillisecondsSinceEpoch(ts);
+    final unread = Sync.unreadCount();
+
+    return Section(
+      child: Row(
+        children: [
+          Avatar(
+            emoji: mine ? Store.myAvatar : (m['avatar'] ?? '').toString(),
+            name: mine ? Store.myName : (m['name'] ?? '').toString(),
+            size: 42,
+            ring: mine ? C.pink : C.purple,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(mine ? 'Bạn nhắn' : '${m['name']} nhắn',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 13)),
+                    const SizedBox(width: 8),
+                    Text('${two(t.hour)}:${two(t.minute)}',
+                        style:
+                            const TextStyle(fontSize: 11, color: C.muted)),
+                    if (unread > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          gradient: C.grad,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text('$unread mới',
+                            style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text((m['text'] ?? '').toString(),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13.5, height: 1.4)),
+              ],
+            ),
+          ),
         ],
       ),
     );
