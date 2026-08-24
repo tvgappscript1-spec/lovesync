@@ -383,40 +383,53 @@ class GradientButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Ve gradient bang Container chu KHONG dung Ink.
+    // Ink ve nen vao Material gan nhat (nen Scaffold), nam DUOI the trang cua
+    // Section -> nut se bi che mat, chi con chu trang tren nen trang.
     return Opacity(
       opacity: onTap == null || loading ? 0.6 : 1,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: loading ? null : onTap,
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: C.grad,
+      child: Container(
+        width: double.infinity,
+        height: 52,
+        decoration: BoxDecoration(
+          gradient: C.grad,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: C.pink.withOpacity(0.28),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
             borderRadius: BorderRadius.circular(18),
-          ),
-          child: Container(
-            height: 52,
-            alignment: Alignment.center,
-            child: loading
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2.4, color: Colors.white),
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (icon != null) ...[
-                        Icon(icon, color: Colors.white, size: 20),
-                        const SizedBox(width: 8),
+            onTap: loading ? null : onTap,
+            child: Center(
+              child: loading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.4, color: Colors.white),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (icon != null) ...[
+                          Icon(icon, color: Colors.white, size: 20),
+                          const SizedBox(width: 8),
+                        ],
+                        Text(label,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15)),
                       ],
-                      Text(label,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15)),
-                    ],
-                  ),
+                    ),
+            ),
           ),
         ),
       ),
@@ -1281,14 +1294,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
-  Future<void> _saveProfile() async {
+  /// Ghi du lieu xuong may. Dung chung cho nut Luu va luc thoat man hinh.
+  Future<void> _writeProfile() async {
     await Store.setStr('partner_name',
         _partner.text.trim().isEmpty ? 'Người ấy' : _partner.text.trim());
     await Store.setStr('gemini_key', _key.text.trim());
     await Store.setStr('love_start', _start);
+    await Store.setStr('db_url', _db.text.trim());
+    await Store.setStr('pair_code', _code.text.trim());
     await Store.saveProfile(
         name: _me.text.trim().isEmpty ? 'Tôi' : _me.text.trim());
+  }
+
+  Future<void> _saveProfile() async {
+    await _writeProfile();
+    Sync.startAuto();
     if (!mounted) return;
+    setState(() {});
     toast(context, 'Đã lưu và gửi sang máy người ấy');
   }
 
@@ -1317,9 +1339,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Cài đặt')),
-      body: ListView(
+    return PopScope(
+      // Bam mui ten quay lai -> tu dong luu, khong lo mat du lieu vua nhap
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) _writeProfile();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Cài đặt'),
+          actions: [
+            TextButton.icon(
+              onPressed: _saveProfile,
+              icon: const Icon(Icons.check, size: 18, color: C.pink),
+              label: const Text('Lưu',
+                  style: TextStyle(
+                      color: C.pink, fontWeight: FontWeight.w700)),
+            ),
+            const SizedBox(width: 6),
+          ],
+        ),
+        body: ListView(
         children: [
           Section(
             title: 'Hai chúng mình',
@@ -1527,9 +1567,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Lấy key miễn phí tại aistudio.google.com/apikey. Key chỉ lưu trên máy bạn. Nhớ bấm "Lưu thông tin" ở trên.',
+                  'Lấy key miễn phí tại aistudio.google.com/apikey. Key chỉ lưu trên máy bạn.',
                   style: TextStyle(fontSize: 12, color: C.muted),
                 ),
+                const SizedBox(height: 14),
+                GradientButton(
+                    label: 'Lưu API key',
+                    icon: Icons.check,
+                    onTap: _saveProfile),
               ],
             ),
           ),
@@ -1567,8 +1612,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(color: Colors.redAccent)),
             ),
           ),
-          const SizedBox(height: 30),
-        ],
+            const SizedBox(height: 30),
+          ],
+        ),
       ),
     );
   }
