@@ -24,10 +24,24 @@ class C {
   static const muted = Color(0xFF8A8595);
   static const soft = Color(0xFFF1ECF7);
 
+  // Mau phu cho nut
+  static const peach = Color(0xFFFFB0C4); // hong dao, lam diem sang dau gradient
+  static const lilac = Color(0xFFBFB4FF); // tim nhat, lam diem cuoi
+  static const mint = Color(0xFF7FD9C0); // nut xac nhan phu
+
+  /// Gradient 3 chang: hong dao -> hong -> tim. Meo hon, nhin ngot hon 2 chang.
   static const grad = LinearGradient(
-    colors: [pink, purple],
-    begin: Alignment.centerLeft,
-    end: Alignment.centerRight,
+    colors: [peach, pink, purple],
+    stops: [0.0, 0.45, 1.0],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  /// Ban nhat cua grad, dung cho nut phu.
+  static const gradSoft = LinearGradient(
+    colors: [Color(0xFFFFE8EF), Color(0xFFEFEBFF)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
   );
 }
 
@@ -245,6 +259,37 @@ class LoveSyncApp extends StatelessWidget {
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
+        // Nut vien: bo tron kieu vien thuoc, vien hong nhat cho dong bo
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: C.pink,
+            minimumSize: const Size(0, 48),
+            side: BorderSide(color: C.pink.withOpacity(0.45), width: 1.5),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24)),
+            textStyle:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: C.pink,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
+            textStyle:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            elevation: 0,
+            minimumSize: const Size(0, 48),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24)),
+            textStyle:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          ),
+        ),
       ),
       home: const RootShell(),
     );
@@ -368,67 +413,106 @@ class Section extends StatelessWidget {
   }
 }
 
-class GradientButton extends StatelessWidget {
+/// Nut chinh: bo tron kieu vien thuoc, gradient pastel, co hieu ung nhun khi cham.
+class GradientButton extends StatefulWidget {
   final String label;
   final IconData? icon;
   final VoidCallback? onTap;
   final bool loading;
+
+  /// true = nut phu: nen pastel nhat, chu hong. Dung cho hanh dong khong chinh.
+  final bool soft;
+
   const GradientButton({
     super.key,
     required this.label,
     this.icon,
     this.onTap,
     this.loading = false,
+    this.soft = false,
   });
 
   @override
+  State<GradientButton> createState() => _GradientButtonState();
+}
+
+class _GradientButtonState extends State<GradientButton> {
+  bool _down = false;
+
+  @override
   Widget build(BuildContext context) {
-    // Ve gradient bang Container chu KHONG dung Ink.
-    // Ink ve nen vao Material gan nhat (nen Scaffold), nam DUOI the trang cua
-    // Section -> nut se bi che mat, chi con chu trang tren nen trang.
-    return Opacity(
-      opacity: onTap == null || loading ? 0.6 : 1,
-      child: Container(
-        width: double.infinity,
-        height: 52,
-        decoration: BoxDecoration(
-          gradient: C.grad,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: C.pink.withOpacity(0.28),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(18),
-            onTap: loading ? null : onTap,
-            child: Center(
-              child: loading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2.4, color: Colors.white),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (icon != null) ...[
-                          Icon(icon, color: Colors.white, size: 20),
-                          const SizedBox(width: 8),
-                        ],
-                        Text(label,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15)),
-                      ],
+    final disabled = widget.onTap == null || widget.loading;
+    final fg = widget.soft ? C.pink : Colors.white;
+
+    return AnimatedScale(
+      // Nhun nhe khi nhan giu -> cam giac bam that
+      scale: _down ? 0.97 : 1,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      child: Opacity(
+        opacity: disabled ? 0.55 : 1,
+        child: Container(
+          width: double.infinity,
+          height: 54,
+          decoration: BoxDecoration(
+            // Ve gradient bang Container chu KHONG dung Ink: Ink ve nen vao
+            // Material gan nhat (nen Scaffold), nam duoi the trang cua Section
+            // -> nut se bi che mat.
+            gradient: widget.soft ? C.gradSoft : C.grad,
+            borderRadius: BorderRadius.circular(27),
+            border: widget.soft
+                ? Border.all(color: C.pink.withOpacity(0.35), width: 1.4)
+                : null,
+            boxShadow: disabled
+                ? null
+                : [
+                    // Bong hong toa rong cho cam giac mem
+                    BoxShadow(
+                      color: (widget.soft ? C.pink : C.pink).withOpacity(0.30),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
                     ),
+                    BoxShadow(
+                      color: C.purple.withOpacity(0.18),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(27),
+              splashColor: Colors.white.withOpacity(0.28),
+              highlightColor: Colors.white.withOpacity(0.12),
+              onTap: widget.loading ? null : widget.onTap,
+              onTapDown: (_) => setState(() => _down = true),
+              onTapUp: (_) => setState(() => _down = false),
+              onTapCancel: () => setState(() => _down = false),
+              child: Center(
+                child: widget.loading
+                    ? SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.4, color: fg),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (widget.icon != null) ...[
+                            Icon(widget.icon, color: fg, size: 20),
+                            const SizedBox(width: 9),
+                          ],
+                          Text(widget.label,
+                              style: TextStyle(
+                                  color: fg,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                  letterSpacing: 0.2)),
+                        ],
+                      ),
+              ),
             ),
           ),
         ),
@@ -1537,9 +1621,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   loading: _connecting,
                   onTap: _connect,
                 ),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: () {
+                const SizedBox(height: 12),
+                GradientButton(
+                  label: 'Copy thông tin kết nối',
+                  icon: Icons.ios_share_rounded,
+                  soft: true,
+                  onTap: () {
                     Clipboard.setData(ClipboardData(
                         text:
                             'LoveSync — cài app rồi nhập 2 dòng này vào Cài đặt:\n'
@@ -1547,8 +1634,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             'Mã cặp đôi: ${_code.text.trim()}'));
                     toast(context, 'Đã copy, gửi cho người ấy nhé');
                   },
-                  icon: const Icon(Icons.ios_share_rounded, size: 18),
-                  label: const Text('Copy thông tin kết nối'),
                 ),
               ],
             ),
