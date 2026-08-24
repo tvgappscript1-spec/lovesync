@@ -18,10 +18,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-
     defaultConfig {
         applicationId = "com.lovesync.app"
         minSdk = 23      // image_picker yeu cau toi thieu 21
@@ -37,6 +33,14 @@ android {
             isMinifyEnabled = false
             isShrinkResources = false
         }
+    }
+}
+
+// Kotlin 2.2 danh dau kotlinOptions la cu -> dung compilerOptions.
+// Khoi nay o cap cao nhat, KHONG nam trong android { }.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
 
