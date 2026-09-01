@@ -95,6 +95,27 @@ Bản đầu dùng `geolocator` + `geocoding` để tự lấy toạ độ và `
 
 Làm vậy để tránh phải bật Firebase Storage (nay yêu cầu gắn thẻ thanh toán) và giữ mỗi vòng đồng bộ đủ nhẹ.
 
+## Thủ thỉ (nhắn tin)
+
+Tab 💬 giữa Cảm xúc và Duo Quiz, dùng chung Firebase đã cấu hình.
+
+- Bong bóng gradient hồng cho bạn bên phải, nền trắng cho người ấy bên trái.
+- Tin chỉ có emoji hiện to, không bọc bong bóng.
+- Hàng **câu gửi nhanh** trên ô nhập: chạm là gửi, khỏi gõ.
+- **Thông báo tin nhắn**: đang ở tab khác mà người ấy nhắn thì app hiện thẻ nổi gradient ở đáy màn hình kèm rung nhẹ, chạm vào nhảy thẳng vào tab chat.
+- Nhịp kiểm tra: 5 giây khi đang mở tab chat, 10 giây khi ở tab khác, 30 giây cho các dữ liệu còn lại.
+- Huy hiệu số tin chưa đọc trên biểu tượng tab, và thẻ tin mới nhất ngay ở màn Cảm xúc.
+
+**Không có thông báo khi app đã đóng hẳn.** Muốn vậy phải dùng Firebase Cloud Messaging, kéo theo `google-services.json` và cấu hình Gradle — đúng nhóm thứ đã gây ra chuỗi lỗi build trước đây.
+
+Dữ liệu nằm ở `couples/{mã cặp đôi}/chat/{ts}_{uid}`, giữ 300 tin gần nhất. Rules hiện tại đã phủ nhánh này.
+
+## Cập nhật app không mất dữ liệu
+
+APK được ký bằng khoá cố định `android/app/lovesync.jks` trong repo, và `versionCode` tự tăng theo số lần chạy workflow. Nhờ vậy bản mới cài đè lên bản cũ được, giữ nguyên dữ liệu.
+
+Chi tiết và các lưu ý quan trọng nằm trong `CAP-NHAT-APP.md`.
+
 ## Cơ chế đồng bộ (để bạn biết mà xử lý khi có vấn đề)
 
 ```

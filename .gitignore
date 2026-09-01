@@ -11,13 +11,13 @@ pubspec.lock
 *.iml
 .vscode/
 
-# Android (KHONG bo qua ca thu muc android/ - chi bo file may sinh)
+# Android - chi bo file may sinh.
+# LUU Y: KHONG bo qua android/app/lovesync.jks va android/key.properties.
+# Hai file nay phai nam trong repo thi moi ky duoc APK bang cung mot chu ky,
+# nho vay cai de len ban cu ma khong mat du lieu.
 android/.gradle/
 android/local.properties
 android/gradlew
 android/gradlew.bat
 android/gradle/wrapper/gradle-wrapper.jar
 android/captures/
-key.properties
-*.jks
-*.keystore

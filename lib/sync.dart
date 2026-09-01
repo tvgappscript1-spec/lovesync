@@ -23,6 +23,7 @@ class Sync {
   /// Tang len sau moi lan dong bo thanh cong -> man hinh tu ve lai.
   static final ValueNotifier<int> revision = ValueNotifier<int>(0);
   static Timer? _timer;
+  static Timer? _chatTimer;
 
   static String get dbUrl =>
       Store.str('db_url').trim().replaceAll(RegExp(r'/+$'), '');
@@ -245,7 +246,11 @@ class Sync {
 
       // Giu 300 tin gan nhat cho nhe may
       final trimmed = list.length > 300 ? list.sublist(list.length - 300) : list;
+
+      final before = Store.listMap('chat').length;
       await Store.setListMap('chat', trimmed);
+      // Co tin moi -> bao cho man hinh de hien thong bao
+      if (trimmed.length != before) revision.value++;
     } catch (_) {}
   }
 
@@ -271,13 +276,20 @@ class Sync {
   // ----------------------------------------------------------
   static void startAuto() {
     _timer?.cancel();
+    _chatTimer?.cancel();
     if (!enabled) return;
     pullAll();
+    // Du lieu chung: 30 giay mot lan
     _timer = Timer.periodic(const Duration(seconds: 30), (_) => pullAll());
+    // Tin nhan: 10 giay mot lan de bao kip thoi du dang o tab khac
+    _chatTimer =
+        Timer.periodic(const Duration(seconds: 10), (_) => pullChat());
   }
 
   static void stopAuto() {
     _timer?.cancel();
+    _chatTimer?.cancel();
     _timer = null;
+    _chatTimer = null;
   }
 }

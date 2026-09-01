@@ -35,6 +35,13 @@ jobs:
                    android/app/build.gradle.kts android/app/src/main/AndroidManifest.xml; do
             [ -f "$f" ] || { echo "::error::Thieu file $f - hay upload day du thu muc android/"; exit 1; }
           done
+          if [ -f android/app/lovesync.jks ] && [ -f android/key.properties ]; then
+            echo "Co khoa ky co dinh -> APK moi se cai de len ban cu duoc."
+          else
+            echo "::warning::Thieu android/app/lovesync.jks hoac android/key.properties."
+            echo "::warning::APK se duoc ky bang debug key sinh moi moi lan build,"
+            echo "::warning::nghia la KHONG cai de len ban cu duoc va se mat du lieu."
+          fi
           echo "Cau truc android/ day du."
 
       - name: Tao Gradle wrapper (file .jar khong duoc commit)
@@ -69,16 +76,31 @@ jobs:
       - name: Build APK release
         run: |
           set -o pipefail
-          flutter build apk --release 2>&1 | tee /tmp/build.log || {
+          # Moi lan build tang versionCode -> Android coi la ban moi hon
+          # va cho phep cai de len ban cu ma giu nguyen du lieu.
+          BUILD_NO=${{ github.run_number }}
+          echo "versionCode = $BUILD_NO"
+          flutter build apk --release \
+            --build-name=1.0.$BUILD_NO \
+            --build-number=$BUILD_NO 2>&1 | tee /tmp/build.log || {
             echo "=================== LOI GRADLE ==================="
             grep -n -B2 -A6 -iE "error|exception|failed|requires|Could not" /tmp/build.log | head -120
             echo "================================================="
             exit 1
           }
 
+      - name: Kiem tra chu ky APK
+        run: |
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          "$JAVA_HOME/bin/keytool" -printcert -jarfile "$APK" | grep -i "SHA-256\|Owner" || true
+          echo "Chu ky nay phai GIONG NHAU o moi ban build thi moi cai de duoc."
+
       - name: Build them ban arm64 (khong bat buoc)
         continue-on-error: true
-        run: flutter build apk --release --split-per-abi
+        run: |
+          BUILD_NO=${{ github.run_number }}
+          flutter build apk --release --split-per-abi \
+            --build-name=1.0.$BUILD_NO --build-number=$BUILD_NO
 
       - name: Doi ten file cho de nhan biet
         run: |

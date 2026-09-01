@@ -306,15 +306,122 @@ class RootShell extends StatefulWidget {
 class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   int _index = 0;
 
+  /// Moc thoi gian cua tin nhan moi nhat da nhin thay -> de biet tin nao la moi.
+  int _seenTs = 0;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _seenTs = _lastChatTs();
     Sync.revision.addListener(_onSync);
   }
 
+  int _lastChatTs() {
+    final chat = Store.listMap('chat');
+    if (chat.isEmpty) return 0;
+    return chat
+        .map((m) => ((m['ts'] as num?) ?? 0).toInt())
+        .reduce((a, b) => a > b ? a : b);
+  }
+
   void _onSync() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    _checkNewMessage();
+    setState(() {});
+  }
+
+  /// Co tin moi cua nguoi kia, ma minh dang khong o tab chat -> bao ngay.
+  void _checkNewMessage() {
+    final chat = Store.listMap('chat')
+      ..sort((a, b) =>
+          ((a['ts'] as num?) ?? 0).compareTo((b['ts'] as num?) ?? 0));
+    if (chat.isEmpty) return;
+
+    final last = chat.last;
+    final ts = ((last['ts'] as num?) ?? 0).toInt();
+    if (ts <= _seenTs) return;
+    _seenTs = ts;
+
+    // Tin cua chinh minh thi khong bao
+    if (last['by'] == Sync.uid) return;
+    // Dang mo tab chat thi da thay roi
+    if (_index == 1) return;
+
+    HapticFeedback.mediumImpact();
+    _showBanner(
+      name: (last['name'] ?? Store.partnerName).toString(),
+      avatar: (last['avatar'] ?? Store.partnerAvatar).toString(),
+      text: (last['text'] ?? '').toString(),
+    );
+  }
+
+  void _showBanner(
+      {required String name, required String avatar, required String text}) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 5),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        behavior: SnackBarBehavior.floating,
+        padding: EdgeInsets.zero,
+        content: GestureDetector(
+          onTap: () {
+            messenger.hideCurrentSnackBar();
+            setState(() => _index = 1);
+            Sync.markChatRead();
+          },
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              gradient: C.grad,
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: C.pink.withOpacity(0.4),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Avatar(
+                    emoji: avatar,
+                    name: name,
+                    size: 42,
+                    ring: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('$name vừa nhắn 💬',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13.5)),
+                      const SizedBox(height: 2),
+                      Text(text,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              height: 1.35)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: Colors.white70),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
