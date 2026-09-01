@@ -173,7 +173,6 @@ class Store {
   static String get myAvatar => str('my_avatar');
   static String get partnerAvatar => str('partner_avatar');
   static String get loveStart => str('love_start', '');
-  static String get apiKey => str('gemini_key', '');
 
   /// Sua ten hoac avatar -> danh dau moc thoi gian va day len ngay.
   static Future<void> saveProfile({String? name, String? avatar}) async {
@@ -1296,18 +1295,89 @@ class _MoodScreenState extends State<MoodScreen> {
 }
 
 // ============================================================
-// 6. AI COACH (Gemini API)
+// 6. AI COACH (OpenAI hoac Gemini)
 // ============================================================
-class GeminiService {
-  static const model = 'gemini-2.0-flash';
+class AiService {
+  /// Model mac dinh cua tung ben. Nguoi dung co the doi trong Cai dat.
+  static const defaultOpenAiModel = 'gpt-4o-mini';
+  static const defaultGeminiModel = 'gemini-2.0-flash';
 
-  static Future<String> ask(String prompt) async {
-    final key = Store.apiKey.trim();
-    if (key.isEmpty) {
-      return '⚠️ Chưa có API key.\n\nVào Cài đặt → dán Gemini API key (lấy miễn phí tại aistudio.google.com/apikey) để bật AI Coach.';
+  static String get provider => Store.str('ai_provider', 'openai');
+  static String get openAiKey => Store.str('openai_key').trim();
+  static String get geminiKey => Store.str('gemini_key').trim();
+  static String get model => Store.str('ai_model').trim().isEmpty
+      ? (provider == 'openai' ? defaultOpenAiModel : defaultGeminiModel)
+      : Store.str('ai_model').trim();
+
+  static bool get hasKey =>
+      provider == 'openai' ? openAiKey.isNotEmpty : geminiKey.isNotEmpty;
+
+  static Future<String> ask(String prompt) =>
+      provider == 'openai' ? _askOpenAi(prompt) : _askGemini(prompt);
+
+  // ---------------- OpenAI ----------------
+  static Future<String> _askOpenAi(String prompt) async {
+    if (openAiKey.isEmpty) {
+      return '⚠️ Chưa có OpenAI API key.\n\nVào Cài đặt → dán key lấy ở platform.openai.com/api-keys.\n\nLưu ý: OpenAI tính phí theo lượt dùng, tài khoản phải có số dư mới gọi được.';
+    }
+    try {
+      final res = await http
+          .post(
+            Uri.parse('https://api.openai.com/v1/chat/completions'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $openAiKey',
+            },
+            body: jsonEncode({
+              'model': model,
+              'messages': [
+                {'role': 'user', 'content': prompt}
+              ],
+              'temperature': 0.9,
+              'max_tokens': 900,
+            }),
+          )
+          .timeout(const Duration(seconds: 60));
+
+      if (res.statusCode != 200) {
+        return _openAiError(res.statusCode, res.body);
+      }
+      final data =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final choices = data['choices'] as List?;
+      if (choices == null || choices.isEmpty) {
+        return 'AI chưa trả lời được, thử lại nhé.';
+      }
+      final text =
+          (choices.first['message']?['content'] ?? '').toString().trim();
+      return text.isEmpty ? 'AI chưa trả lời được, thử lại nhé.' : text;
+    } catch (e) {
+      return 'Lỗi kết nối: $e';
+    }
+  }
+
+  static String _openAiError(int code, String body) {
+    switch (code) {
+      case 401:
+        return 'Key không hợp lệ (401). Kiểm tra lại key ở Cài đặt, nhớ copy đủ chuỗi bắt đầu bằng sk-.';
+      case 429:
+        return 'Vượt hạn mức hoặc hết số dư (429).\n\nVào platform.openai.com → Billing để kiểm tra. OpenAI cần có số dư mới gọi được API.';
+      case 404:
+        return 'Không tìm thấy model "$model" (404). Đổi tên model trong Cài đặt, ví dụ gpt-4o-mini.';
+      case 400:
+        return 'Yêu cầu không hợp lệ (400). Thử đổi model sang gpt-4o-mini.';
+      default:
+        return 'Không gọi được AI (mã $code).';
+    }
+  }
+
+  // ---------------- Gemini ----------------
+  static Future<String> _askGemini(String prompt) async {
+    if (geminiKey.isEmpty) {
+      return '⚠️ Chưa có Gemini API key.\n\nVào Cài đặt → dán key lấy miễn phí tại aistudio.google.com/apikey.';
     }
     final uri = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$key');
+        'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$geminiKey');
     try {
       final res = await http
           .post(
@@ -1324,7 +1394,7 @@ class GeminiService {
               'generationConfig': {'temperature': 0.9, 'maxOutputTokens': 900}
             }),
           )
-          .timeout(const Duration(seconds: 45));
+          .timeout(const Duration(seconds: 60));
 
       if (res.statusCode != 200) {
         return 'Không gọi được AI (mã ${res.statusCode}). Kiểm tra lại API key hoặc kết nối mạng.';
@@ -1406,7 +1476,7 @@ YÊU CẦU TRẢ LỜI:
 - Nếu dữ liệu còn thiếu, cứ đưa lời khuyên chung nhưng đừng nhắc đi nhắc lại là thiếu dữ liệu.
 - Không chẩn đoán tâm lý, không khuyên chia tay.
 ''';
-    final res = await GeminiService.ask(prompt);
+    final res = await AiService.ask(prompt);
     await Store.setStr('last_advice', res);
     if (!mounted) return;
     setState(() {
@@ -1419,9 +1489,11 @@ YÊU CẦU TRẢ LỜI:
   Widget build(BuildContext context) {
     return ListView(
       children: [
-        const PageHeader(
+        PageHeader(
           title: 'AI Coach',
-          subtitle: 'Đọc cảm xúc của cả hai và gợi ý cách quan tâm',
+          subtitle: AiService.hasKey
+              ? 'Đang dùng ${AiService.provider == 'openai' ? 'ChatGPT' : 'Gemini'} • ${AiService.model}'
+              : 'Vào Cài đặt để nhập API key trước',
         ),
         Section(
           title: 'Chọn điều bạn cần',
@@ -1563,10 +1635,13 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late final _me = TextEditingController(text: Store.myName);
   late final _partner = TextEditingController(text: Store.partnerName);
-  late final _key = TextEditingController(text: Store.apiKey);
+  late final _key = TextEditingController(text: Store.str('gemini_key'));
+  late final _openaiKey = TextEditingController(text: Store.str('openai_key'));
+  late final _model = TextEditingController(text: Store.str('ai_model'));
   late final _db = TextEditingController(text: Store.str('db_url'));
   late final _code = TextEditingController(text: Store.str('pair_code'));
   String _start = Store.loveStart;
+  String _provider = Store.str('ai_provider', 'openai');
   bool _connecting = false;
 
   @override
@@ -1574,9 +1649,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _me.dispose();
     _partner.dispose();
     _key.dispose();
+    _openaiKey.dispose();
+    _model.dispose();
     _db.dispose();
     _code.dispose();
     super.dispose();
+  }
+
+  /// O chon nha cung cap AI.
+  Widget _providerTile({
+    required String id,
+    required String emoji,
+    required String name,
+    required String note,
+  }) {
+    final sel = _provider == id;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _provider = id;
+        _model.clear(); // model cua ben nay khong dung cho ben kia
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        decoration: BoxDecoration(
+          gradient: sel ? C.gradSoft : null,
+          color: sel ? null : C.soft.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+              color: sel ? C.pink : Colors.transparent, width: 1.6),
+        ),
+        child: Column(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 6),
+            Text(name,
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: sel ? C.pink : C.ink)),
+            const SizedBox(height: 2),
+            Text(note,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11, color: C.muted)),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Ghi du lieu xuong may. Dung chung cho nut Luu va luc thoat man hinh.
@@ -1584,6 +1703,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await Store.setStr('partner_name',
         _partner.text.trim().isEmpty ? 'Người ấy' : _partner.text.trim());
     await Store.setStr('gemini_key', _key.text.trim());
+    await Store.setStr('openai_key', _openaiKey.text.trim());
+    await Store.setStr('ai_provider', _provider);
+    await Store.setStr('ai_model', _model.text.trim());
     await Store.setStr('love_start', _start);
     await Store.setStr('db_url', _db.text.trim());
     await Store.setStr('pair_code', _code.text.trim());
@@ -1841,24 +1963,82 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           Section(
-            title: 'AI Coach (Gemini)',
+            title: 'AI Coach',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                TextField(
-                  controller: _key,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                      labelText: 'Gemini API key', hintText: 'AIza...'),
+                const Text('Dùng dịch vụ nào?',
+                    style: TextStyle(fontSize: 12.5, color: C.muted)),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _providerTile(
+                        id: 'openai',
+                        emoji: '🤖',
+                        name: 'ChatGPT',
+                        note: 'Trả phí theo lượt',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _providerTile(
+                        id: 'gemini',
+                        emoji: '✨',
+                        name: 'Gemini',
+                        note: 'Có mức miễn phí',
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Lấy key miễn phí tại aistudio.google.com/apikey. Key chỉ lưu trên máy bạn.',
-                  style: TextStyle(fontSize: 12, color: C.muted),
+                const SizedBox(height: 16),
+
+                if (_provider == 'openai') ...[
+                  TextField(
+                    controller: _openaiKey,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                        labelText: 'OpenAI API key', hintText: 'sk-...'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Lấy key tại platform.openai.com/api-keys. Tài khoản phải có số dư (nạp tối thiểu 5 USD) thì API mới chạy, gói ChatGPT Plus không dùng được cho API.',
+                    style: TextStyle(fontSize: 12, color: C.muted, height: 1.5),
+                  ),
+                ] else ...[
+                  TextField(
+                    controller: _key,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                        labelText: 'Gemini API key', hintText: 'AIza...'),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Lấy key miễn phí tại aistudio.google.com/apikey.',
+                    style: TextStyle(fontSize: 12, color: C.muted),
+                  ),
+                ],
+
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _model,
+                  decoration: InputDecoration(
+                    labelText: 'Model (để trống là dùng mặc định)',
+                    hintText: _provider == 'openai'
+                        ? AiService.defaultOpenAiModel
+                        : AiService.defaultGeminiModel,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _provider == 'openai'
+                      ? 'Gợi ý: gpt-4o-mini rẻ và đủ dùng, gpt-4o trả lời sâu hơn nhưng đắt hơn.'
+                      : 'Gợi ý: gemini-2.0-flash nhanh và miễn phí.',
+                  style: const TextStyle(fontSize: 11.5, color: C.muted),
                 ),
                 const SizedBox(height: 14),
                 GradientButton(
-                    label: 'Lưu API key',
+                    label: 'Lưu cài đặt AI',
                     icon: Icons.check,
                     onTap: _saveProfile),
               ],
