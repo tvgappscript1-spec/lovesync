@@ -131,6 +131,22 @@ Vì sao thêm được nhiều dịch vụ dễ thế: Groq, OpenRouter và Chat
 
 **Lưu ý về ChatGPT:** gói ChatGPT Plus không dùng được cho API — hai thứ tính tiền riêng. Muốn gọi API phải nạp tiền ở mục Billing.
 
+## Vòng quay hẹn hò
+
+Tab **Của mình → Vòng quay**. Bấm *Quay đi!* để chọn ngẫu nhiên địa điểm hoặc hoạt động cho hai đứa.
+
+- Vẽ bằng `CustomPainter`, không thêm thư viện nào.
+- Quay 5–8 vòng rồi chậm dần theo `easeOutCubic`, cho cảm giác có quán tính và ma sát.
+- Rung nhẹ lúc bắt đầu, rung mạnh lúc dừng.
+- Tự thêm/xoá ô, tối đa 12 ô cho chữ còn đọc được.
+- Danh sách ô và kết quả lần quay gần nhất **đồng bộ hai máy** — bạn gái mở app cũng thấy "Vương vừa quay được Ăn lẩu".
+
+## Duo Quiz — khoá đáp án hai chiều
+
+Trước đây trả lời xong là thấy ngay ô của người kia nếu họ đã làm. Giờ đáp án **bị khoá cho tới khi cả hai cùng trả lời** câu đó — che luôn đáp án của chính mình, nên không ai đoán trước được.
+
+Ô khoá hiện hai dấu tích cho biết ai đã trả lời, ai chưa. Khi đủ hai người, đáp án mở ra cạnh nhau. Nếu có câu trùng nhau, màn hình bắn **pháo hoa** — 5 chùm nổ lệch nhịp, hạt rơi theo trọng lực, cũng vẽ bằng `CustomPainter`.
+
 ## Cập nhật app không mất dữ liệu
 
 APK được ký bằng khoá cố định `android/app/lovesync.jks` trong repo, và `versionCode` tự tăng theo số lần chạy workflow. Nhờ vậy bản mới cài đè lên bản cũ được, giữ nguyên dữ liệu.

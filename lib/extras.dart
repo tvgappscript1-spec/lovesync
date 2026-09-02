@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'main.dart';
 import 'memories.dart';
+import 'wheel.dart';
 
 class ExtrasScreen extends StatelessWidget {
   const ExtrasScreen({super.key});
@@ -10,7 +11,7 @@ class ExtrasScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Column(
         children: [
           const PageHeader(
@@ -26,6 +27,7 @@ class ExtrasScreen extends StatelessWidget {
             labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
             tabs: [
               Tab(text: 'Kỷ niệm'),
+              Tab(text: 'Vòng quay'),
               Tab(text: 'Wishlist'),
               Tab(text: 'Ngày quan trọng'),
               Tab(text: 'Quỹ chung'),
@@ -36,6 +38,7 @@ class ExtrasScreen extends StatelessWidget {
             child: TabBarView(
               children: [
                 MemoryTab(),
+                WheelTab(),
                 _WishlistTab(),
                 _EventTab(),
                 _SavingTab(),

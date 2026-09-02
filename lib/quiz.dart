@@ -886,109 +886,176 @@ class _HeartsPainter extends CustomPainter {
 // ============================================================
 // 6. SO DAP AN DOI SONG
 // ============================================================
-class QuizCompareScreen extends StatelessWidget {
+class QuizCompareScreen extends StatefulWidget {
   final DateTime date;
   const QuizCompareScreen({super.key, required this.date});
 
   @override
+  State<QuizCompareScreen> createState() => _QuizCompareScreenState();
+}
+
+class _QuizCompareScreenState extends State<QuizCompareScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _fw = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2600),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    // Ban phao hoa neu hom nay co cau nao hai dua tra loi giong nhau
+    final r = DailyQuiz.result(widget.date);
+    if (r.matched > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _fw.forward());
+    }
+  }
+
+  @override
+  void dispose() {
+    _fw.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final date = widget.date;
     final qs = DailyQuiz.forDate(date);
     final me = Store.quiz('me');
     final pa = Store.quiz('partner');
+    final r = DailyQuiz.result(date);
 
     return Scaffold(
       appBar: AppBar(
-          title: Text('Đáp án ${two(date.day)}/${two(date.month)}/${date.year}')),
-      body: ListView(
+          title: Text(
+              'Đáp án ${two(date.day)}/${two(date.month)}/${date.year}')),
+      body: Stack(
         children: [
-          Section(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _who(Store.myAvatar, Store.myName, C.pink),
-                const Text('💞', style: TextStyle(fontSize: 22)),
-                _who(Store.partnerAvatar, Store.partnerName, C.purple),
-              ],
+          ListView(
+            children: [
+              Section(
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _who(Store.myAvatar, Store.myName, C.pink),
+                        const Text('💞', style: TextStyle(fontSize: 22)),
+                        _who(Store.partnerAvatar, Store.partnerName, C.purple),
+                      ],
+                    ),
+                    if (r.both > 0) ...[
+                      const SizedBox(height: 14),
+                      Text(
+                          r.matched == r.both
+                              ? '🎆 Trùng khớp toàn bộ ${r.both} câu!'
+                              : 'Trùng ${r.matched}/${r.both} câu đã mở khoá',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: r.matched > 0
+                                  ? Colors.green.shade600
+                                  : C.muted)),
+                    ],
+                  ],
+                ),
+              ),
+              ...qs.map((q) => _questionRow(q, me, pa)),
+              const SizedBox(height: 24),
+            ],
+          ),
+          // Lop phao hoa phu len tren, khong chan thao tac
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _fw,
+                builder: (_, __) => _fw.value == 0 || _fw.isCompleted
+                    ? const SizedBox.shrink()
+                    : CustomPaint(painter: _FireworksPainter(_fw.value)),
+              ),
             ),
           ),
-          ...qs.map((q) {
-            final a = me[q.id] as int?;
-            final b = pa[q.id] as int?;
-            final same = a != null && b != null && a == b;
-            final waiting = a == null || b == null;
-            final cat = catOf(q.category);
+        ],
+      ),
+    );
+  }
 
-            return Section(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(q.emoji, style: const TextStyle(fontSize: 18)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(q.text,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14.5,
-                                height: 1.35)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                          child: _answerBox(
-                              a == null ? null : q.options[a], C.pink, same)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: _answerBox(
-                              b == null ? null : q.options[b], C.purple, same)),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Icon(
-                          same
-                              ? Icons.check_circle
-                              : waiting
-                                  ? Icons.hourglass_empty
-                                  : Icons.forum_outlined,
-                          size: 15,
-                          color: same
-                              ? Colors.green.shade600
-                              : waiting
-                                  ? C.muted
-                                  : cat.color),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          same
-                              ? 'Hai bạn nghĩ giống nhau'
-                              : waiting
-                                  ? 'Chưa đủ hai câu trả lời'
-                                  : 'Khác nhau, chủ đề đáng nói chuyện tối nay',
-                          style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: same
-                                  ? Colors.green.shade600
-                                  : waiting
-                                      ? C.muted
-                                      : cat.color),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+  Widget _questionRow(
+      QuizQuestion q, Map<String, dynamic> me, Map<String, dynamic> pa) {
+    final a = me[q.id] as int?;
+    final b = pa[q.id] as int?;
+    final same = a != null && b != null && a == b;
+    final locked = a == null || b == null; // chua du hai nguoi -> khoa
+    final cat = catOf(q.category);
+
+    return Section(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(q.emoji, style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(q.text,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.5,
+                        height: 1.35)),
               ),
-            );
-          }),
-          const SizedBox(height: 24),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          if (locked)
+            // Khoa hai chieu: khong lo dap an cua ai het, ke ca cua chinh minh
+            _lockedBox(a != null, b != null)
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _answerBox(q.options[a], C.pink, same)),
+                const SizedBox(width: 10),
+                Expanded(child: _answerBox(q.options[b], C.purple, same)),
+              ],
+            ),
+
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(
+                  same
+                      ? Icons.check_circle
+                      : locked
+                          ? Icons.lock_outline
+                          : Icons.forum_outlined,
+                  size: 15,
+                  color: same
+                      ? Colors.green.shade600
+                      : locked
+                          ? C.muted
+                          : cat.color),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  same
+                      ? 'Hai bạn nghĩ giống nhau'
+                      : locked
+                          ? 'Mở khoá khi cả hai cùng trả lời'
+                          : 'Khác nhau, chủ đề đáng nói chuyện tối nay',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: same
+                          ? Colors.green.shade600
+                          : locked
+                              ? C.muted
+                              : cat.color),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -1010,7 +1077,55 @@ class QuizCompareScreen extends StatelessWidget {
         ],
       );
 
-  Widget _answerBox(String? text, Color color, bool same) => Container(
+  /// O bi khoa: che ca hai dap an, chi cho biet ai da tra loi.
+  Widget _lockedBox(bool meDone, bool paDone) {
+    Widget dot(bool done, String name, Color color) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(done ? Icons.check_circle : Icons.circle_outlined,
+                size: 14, color: done ? color : C.muted),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: done ? color : C.muted)),
+            ),
+          ],
+        );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
+      decoration: BoxDecoration(
+        gradient: C.gradSoft,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: C.pink.withOpacity(0.25), width: 1.4),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.lock_rounded, color: C.pink, size: 26),
+          const SizedBox(height: 8),
+          const Text('Đáp án đang bị khoá',
+              style: TextStyle(
+                  fontWeight: FontWeight.w700, fontSize: 13.5, color: C.ink)),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              dot(meDone, Store.myName, C.pink),
+              dot(paDone, Store.partnerName, C.purple),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _answerBox(String text, Color color, bool same) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           color: color.withOpacity(same ? 0.16 : 0.08),
@@ -1018,14 +1133,69 @@ class QuizCompareScreen extends StatelessWidget {
           border: Border.all(
               color: same ? color : color.withOpacity(0.25), width: 1.4),
         ),
-        child: Text(text ?? 'Chưa trả lời',
-            style: TextStyle(
+        child: Text(text,
+            style: const TextStyle(
                 fontSize: 12.5,
                 height: 1.4,
-                fontStyle: text == null ? FontStyle.italic : FontStyle.normal,
-                color: text == null ? C.muted : C.ink,
+                color: C.ink,
                 fontWeight: FontWeight.w600)),
       );
+}
+
+/// Phao hoa: vai chum sang no ra roi mo dan. Ve bang CustomPainter,
+/// khong dung thu vien ngoai.
+class _FireworksPainter extends CustomPainter {
+  final double t; // 0 -> 1
+  _FireworksPainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rnd = Random(2026);
+    const bursts = 5;
+    const perBurst = 26;
+
+    for (var b = 0; b < bursts; b++) {
+      // Moi chum no o mot thoi diem khac nhau
+      final delay = b * 0.13;
+      final local = ((t - delay) / (1 - delay)).clamp(0.0, 1.0);
+      if (local <= 0) continue;
+
+      final cx = size.width * (0.15 + rnd.nextDouble() * 0.7);
+      final cy = size.height * (0.12 + rnd.nextDouble() * 0.45);
+      final maxR = size.width * (0.22 + rnd.nextDouble() * 0.16);
+      final hue = rnd.nextInt(4);
+      final color = [C.pink, C.purple, const Color(0xFFFFD166), C.peach][hue];
+
+      // No nhanh luc dau roi cham dan
+      final r = maxR * (1 - pow(1 - local, 3)).toDouble();
+      final opacity = (1 - local).clamp(0.0, 1.0);
+
+      for (var i = 0; i < perBurst; i++) {
+        final a = 2 * pi * i / perBurst + b;
+        // Hat roi nhe xuong theo trong luc
+        final gravity = size.height * 0.06 * local * local;
+        final p = Offset(cx + cos(a) * r, cy + sin(a) * r + gravity);
+
+        canvas.drawCircle(
+          p,
+          2.6 * (1 - local * 0.5),
+          Paint()..color = color.withOpacity(opacity * 0.9),
+        );
+      }
+
+      // Quang sang o tam luc vua no
+      if (local < 0.3) {
+        canvas.drawCircle(
+          Offset(cx, cy),
+          maxR * 0.28 * (1 - local / 0.3),
+          Paint()..color = Colors.white.withOpacity(0.5 * (1 - local / 0.3)),
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FireworksPainter old) => old.t != t;
 }
 
 // ============================================================

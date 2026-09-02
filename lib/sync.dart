@@ -80,6 +80,8 @@ class Sync {
               'memories': Store.listMap('memories'),
               'fund': Store.map('fund'),
               'fund_logs': Store.listMap('fund_logs'),
+              'wheel': Store.listMap('wheel'),
+              'wheel_last': Store.map('wheel_last'),
               'ts': ts,
               'by': Store.myName,
             }),
@@ -162,6 +164,9 @@ class Sync {
           await Store.setListMap('events', _l(s['events']));
           await Store.setListMap('memories', _l(s['memories']));
           await Store.setListMap('fund_logs', _l(s['fund_logs']));
+          await Store.setListMap('wheel', _l(s['wheel']));
+          await Store.setMap('wheel_last',
+              Map<String, dynamic>.from((s['wheel_last'] as Map?) ?? {}));
           await Store.setMap(
               'fund', Map<String, dynamic>.from((s['fund'] as Map?) ?? {}));
           await Store.setStr('shared_ts', '$serverTs');

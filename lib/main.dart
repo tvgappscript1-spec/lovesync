@@ -160,7 +160,15 @@ class Store {
   static late SharedPreferences p;
 
   /// Cac key thuoc du lieu dung chung -> tu day len Firebase khi thay doi.
-  static const sharedKeys = ['wishlist', 'events', 'memories', 'fund_logs', 'fund'];
+  static const sharedKeys = [
+    'wishlist',
+    'events',
+    'memories',
+    'fund_logs',
+    'fund',
+    'wheel',
+    'wheel_last',
+  ];
 
   static Future<void> init() async {
     p = await SharedPreferences.getInstance();
