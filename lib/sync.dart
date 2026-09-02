@@ -53,6 +53,7 @@ class Sync {
             body: jsonEncode({
               'name': Store.myName,
               'avatar': Store.str('my_avatar'),
+              'ntfy': myTopic,
               'profileTs': int.tryParse(Store.str('my_profile_ts', '0')) ?? 0,
               'moods': Store.moods('me').take(60).map((e) => e.toJson()).toList(),
               'quiz': Store.quiz('me'),
@@ -138,6 +139,9 @@ class Sync {
           if (Store.str('partner_avatar') != av) profileChanged = true;
           await Store.setStr('partner_avatar', av);
 
+          // Kenh thong bao cua nguoi kia -> de gui push khi minh nhan tin
+          await Store.setStr('partner_ntfy', (m['ntfy'] ?? '').toString());
+
           final moods = (m['moods'] as List?) ?? [];
           await Store.setListMap('moods_partner',
               moods.map((x) => Map<String, dynamic>.from(x as Map)).toList());
@@ -191,6 +195,78 @@ class Sync {
   }
 
   // ----------------------------------------------------------
+  // THONG BAO DAY (ntfy.sh) — hoat dong ca khi app da dong
+  // ----------------------------------------------------------
+  /// Kenh rieng cua may nay. Nguoi kia se gui thong bao toi day.
+  static String get myTopic {
+    var t = Store.str('ntfy_topic');
+    if (t.isEmpty) {
+      t = 'lovesync-${randomCode()}';
+      Store.p.setString('ntfy_topic', t);
+    }
+    return t;
+  }
+
+  static String get partnerTopic => Store.str('partner_ntfy').trim();
+  static bool get notifyOn => Store.str('notify_on', '1') == '1';
+
+  /// Co hien noi dung tin trong thong bao khong. Mac dinh la KHONG,
+  /// vi kenh ntfy cong khai cho ai biet ten kenh.
+  static bool get notifyPreview => Store.str('notify_preview', '0') == '1';
+
+  static Future<String?> pushNotify({
+    required String title,
+    required String body,
+    String tags = 'heart',
+  }) async {
+    if (!notifyOn) return null;
+    final topic = partnerTopic;
+    if (topic.isEmpty) return 'Người ấy chưa bật thông báo';
+    try {
+      final res = await http
+          .post(
+            Uri.parse('https://ntfy.sh/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'topic': topic,
+              'title': title,
+              'message': body,
+              'tags': [tags],
+              'priority': 4,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      return res.statusCode == 200 ? null : 'Gửi thông báo lỗi ${res.statusCode}';
+    } catch (e) {
+      return 'Không gửi được thông báo';
+    }
+  }
+
+  /// Gui thu ve chinh kenh cua minh de kiem tra da cai dat dung chua.
+  static Future<String> testNotify() async {
+    try {
+      final res = await http
+          .post(
+            Uri.parse('https://ntfy.sh/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'topic': myTopic,
+              'title': 'LoveSync',
+              'message': 'Thông báo hoạt động rồi 💕',
+              'tags': ['heart'],
+              'priority': 4,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      return res.statusCode == 200
+          ? 'Đã gửi thử. Kiểm tra app ntfy trên máy bạn.'
+          : 'Lỗi ${res.statusCode}, thử lại sau';
+    } catch (e) {
+      return 'Không có mạng';
+    }
+  }
+
+  // ----------------------------------------------------------
   // NHAN TIN
   // ----------------------------------------------------------
   /// Gui mot tin nhan. Luu xuong may truoc de hien ngay, roi day len Firebase.
@@ -222,6 +298,12 @@ class Sync {
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode(msg))
           .timeout(const Duration(seconds: 20));
+
+      // Bao cho may nguoi kia du app cua ho da dong han
+      await pushNotify(
+        title: '${Store.myName} vừa nhắn 💌',
+        body: notifyPreview ? t : 'Mở LoveSync để đọc nhé',
+      );
       return null;
     } catch (_) {
       return 'Mất mạng, tin sẽ được gửi lại khi có kết nối';

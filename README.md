@@ -106,7 +106,7 @@ Tab 💬 giữa Cảm xúc và Duo Quiz, dùng chung Firebase đã cấu hình.
 - Nhịp kiểm tra: 5 giây khi đang mở tab chat, 10 giây khi ở tab khác, 30 giây cho các dữ liệu còn lại.
 - Huy hiệu số tin chưa đọc trên biểu tượng tab, và thẻ tin mới nhất ngay ở màn Cảm xúc.
 
-**Không có thông báo khi app đã đóng hẳn.** Muốn vậy phải dùng Firebase Cloud Messaging, kéo theo `google-services.json` và cấu hình Gradle — đúng nhóm thứ đã gây ra chuỗi lỗi build trước đây.
+**Thông báo khi app đã đóng**: có, qua dịch vụ miễn phí ntfy.sh. Mỗi máy cài thêm app ntfy một lần rồi đăng ký kênh riêng — xem `THONG-BAO-NTFY.md`. Cách này tránh được Firebase Cloud Messaging vốn cần `google-services.json`, plugin native và một server giữ khoá để gửi tin.
 
 Dữ liệu nằm ở `couples/{mã cặp đôi}/chat/{ts}_{uid}`, giữ 300 tin gần nhất. Rules hiện tại đã phủ nhánh này.
 

@@ -1715,6 +1715,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late final _code = TextEditingController(text: Store.str('pair_code'));
   String _start = Store.loveStart;
   String _provider = Store.str('ai_provider', 'groq');
+  bool _notifyOn = Sync.notifyOn;
+  bool _notifyPreview = Sync.notifyPreview;
   late final _aiKey =
       TextEditingController(text: Store.str('ai_key_$_provider'));
   late final _aiModel =
@@ -1730,6 +1732,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _db.dispose();
     _code.dispose();
     super.dispose();
+  }
+
+  /// Mot dong huong dan co danh so.
+  Widget _stepLine(String no, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              gradient: C.grad,
+              shape: BoxShape.circle,
+            ),
+            child: Text(no,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text,
+                style: const TextStyle(fontSize: 13, height: 1.4)),
+          ),
+        ],
+      ),
+    );
   }
 
   /// O chon nha cung cap AI. Doi nha cung cap thi nap lai key va model cua ben do.
@@ -2035,6 +2068,107 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             'Database URL: ${_db.text.trim()}\n'
                             'Mã cặp đôi: ${_code.text.trim()}'));
                     toast(context, 'Đã copy, gửi cho người ấy nhé');
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          // ---------- THONG BAO KHI APP DONG ----------
+          Section(
+            title: 'Thông báo khi app đã đóng',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'App dùng dịch vụ miễn phí ntfy.sh. Mỗi máy cần cài thêm app "ntfy" một lần, sau đó nhận được thông báo kể cả khi LoveSync đã tắt hẳn.',
+                  style: TextStyle(fontSize: 12.5, color: C.muted, height: 1.5),
+                ),
+                const SizedBox(height: 14),
+
+                // Cac buoc cai dat
+                _stepLine('1', 'Cài app ntfy từ CH Play (miễn phí)'),
+                _stepLine('2', 'Mở ntfy, bấm dấu + để đăng ký một kênh'),
+                _stepLine('3', 'Dán đúng tên kênh bên dưới vào ô Topic name'),
+
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    gradient: C.gradSoft,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: C.pink.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Kênh riêng của máy này',
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              color: C.muted,
+                              fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 6),
+                      SelectableText(
+                        Sync.myTopic,
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: C.ink),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                GradientButton(
+                  label: 'Copy tên kênh',
+                  icon: Icons.copy_rounded,
+                  soft: true,
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: Sync.myTopic));
+                    toast(context, 'Đã copy, dán vào app ntfy');
+                  },
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final msg = await Sync.testNotify();
+                    if (!mounted) return;
+                    toast(context, msg);
+                  },
+                  icon: const Icon(Icons.notifications_active_outlined,
+                      size: 18),
+                  label: const Text('Gửi thông báo thử'),
+                ),
+
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: C.pink,
+                  title: const Text('Bật thông báo',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
+                  subtitle: const Text(
+                      'Tắt thì người ấy không nhận được báo khi bạn nhắn',
+                      style: TextStyle(fontSize: 11.5, color: C.muted)),
+                  value: _notifyOn,
+                  onChanged: (v) async {
+                    await Store.setStr('notify_on', v ? '1' : '0');
+                    setState(() => _notifyOn = v);
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: C.pink,
+                  title: const Text('Hiện nội dung tin trong thông báo',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
+                  subtitle: const Text(
+                      'Nên tắt: kênh ntfy công khai với ai biết tên kênh',
+                      style: TextStyle(fontSize: 11.5, color: C.muted)),
+                  value: _notifyPreview,
+                  onChanged: (v) async {
+                    await Store.setStr('notify_preview', v ? '1' : '0');
+                    setState(() => _notifyPreview = v);
                   },
                 ),
               ],
