@@ -1295,38 +1295,113 @@ class _MoodScreenState extends State<MoodScreen> {
 }
 
 // ============================================================
-// 6. AI COACH (OpenAI hoac Gemini)
+// 6. AI COACH — ho tro nhieu nha cung cap
 // ============================================================
+/// Mo ta mot nha cung cap AI.
+class AiProvider {
+  final String id;
+  final String emoji;
+  final String name;
+  final String note;
+  final String baseUrl; // rong = Gemini (dung dinh dang rieng)
+  final String model;
+  final String keyUrl;
+  final String keyHint;
+
+  const AiProvider({
+    required this.id,
+    required this.emoji,
+    required this.name,
+    required this.note,
+    required this.baseUrl,
+    required this.model,
+    required this.keyUrl,
+    required this.keyHint,
+  });
+}
+
+/// Phan lon dich vu deu theo chuan OpenAI -> chi khac base URL va ten model.
+const List<AiProvider> aiProviders = [
+  AiProvider(
+    id: 'groq',
+    emoji: '⚡',
+    name: 'Groq',
+    note: 'Miễn phí, rất nhanh',
+    baseUrl: 'https://api.groq.com/openai/v1',
+    model: 'llama-3.3-70b-versatile',
+    keyUrl: 'console.groq.com/keys',
+    keyHint: 'gsk_...',
+  ),
+  AiProvider(
+    id: 'gemini',
+    emoji: '✨',
+    name: 'Gemini',
+    note: 'Miễn phí, hạn mức rộng',
+    baseUrl: '',
+    model: 'gemini-2.0-flash',
+    keyUrl: 'aistudio.google.com/apikey',
+    keyHint: 'AIza...',
+  ),
+  AiProvider(
+    id: 'openrouter',
+    emoji: '🔀',
+    name: 'OpenRouter',
+    note: 'Nhiều model :free',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    model: 'meta-llama/llama-3.3-70b-instruct:free',
+    keyUrl: 'openrouter.ai/keys',
+    keyHint: 'sk-or-...',
+  ),
+  AiProvider(
+    id: 'openai',
+    emoji: '🤖',
+    name: 'ChatGPT',
+    note: 'Trả phí theo lượt',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
+    keyUrl: 'platform.openai.com/api-keys',
+    keyHint: 'sk-...',
+  ),
+];
+
+AiProvider providerOf(String id) =>
+    aiProviders.firstWhere((p) => p.id == id, orElse: () => aiProviders.first);
+
 class AiService {
-  /// Model mac dinh cua tung ben. Nguoi dung co the doi trong Cai dat.
-  static const defaultOpenAiModel = 'gpt-4o-mini';
-  static const defaultGeminiModel = 'gemini-2.0-flash';
+  static String get providerId => Store.str('ai_provider', 'groq');
+  static AiProvider get provider => providerOf(providerId);
 
-  static String get provider => Store.str('ai_provider', 'openai');
-  static String get openAiKey => Store.str('openai_key').trim();
-  static String get geminiKey => Store.str('gemini_key').trim();
-  static String get model => Store.str('ai_model').trim().isEmpty
-      ? (provider == 'openai' ? defaultOpenAiModel : defaultGeminiModel)
-      : Store.str('ai_model').trim();
+  /// Key luu rieng cho tung nha cung cap -> doi qua doi lai khong phai nhap lai.
+  static String key([String? id]) =>
+      Store.str('ai_key_${id ?? providerId}').trim();
 
-  static bool get hasKey =>
-      provider == 'openai' ? openAiKey.isNotEmpty : geminiKey.isNotEmpty;
+  static String get model {
+    final custom = Store.str('ai_model_$providerId').trim();
+    return custom.isEmpty ? provider.model : custom;
+  }
 
-  static Future<String> ask(String prompt) =>
-      provider == 'openai' ? _askOpenAi(prompt) : _askGemini(prompt);
+  static bool get hasKey => key().isNotEmpty;
 
-  // ---------------- OpenAI ----------------
-  static Future<String> _askOpenAi(String prompt) async {
-    if (openAiKey.isEmpty) {
-      return '⚠️ Chưa có OpenAI API key.\n\nVào Cài đặt → dán key lấy ở platform.openai.com/api-keys.\n\nLưu ý: OpenAI tính phí theo lượt dùng, tài khoản phải có số dư mới gọi được.';
+  static Future<String> ask(String prompt) => provider.baseUrl.isEmpty
+      ? _askGemini(prompt)
+      : _askOpenAiStyle(prompt);
+
+  // ---------------- Chuan OpenAI (Groq, OpenRouter, ChatGPT...) ----------------
+  static Future<String> _askOpenAiStyle(String prompt) async {
+    final k = key();
+    if (k.isEmpty) {
+      return '⚠️ Chưa có API key cho ${provider.name}.\n\nVào Cài đặt → lấy key tại ${provider.keyUrl} rồi dán vào.';
     }
     try {
       final res = await http
           .post(
-            Uri.parse('https://api.openai.com/v1/chat/completions'),
+            Uri.parse('${provider.baseUrl}/chat/completions'),
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer $openAiKey',
+              'Authorization': 'Bearer $k',
+              // OpenRouter yeu cau 2 header nay
+              'HTTP-Referer': 'https://lovesync.app',
+              'X-Title': 'LoveSync',
             },
             body: jsonEncode({
               'model': model,
@@ -1339,9 +1414,8 @@ class AiService {
           )
           .timeout(const Duration(seconds: 60));
 
-      if (res.statusCode != 200) {
-        return _openAiError(res.statusCode, res.body);
-      }
+      if (res.statusCode != 200) return _err(res.statusCode);
+
       final data =
           jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final choices = data['choices'] as List?;
@@ -1356,28 +1430,31 @@ class AiService {
     }
   }
 
-  static String _openAiError(int code, String body) {
+  static String _err(int code) {
     switch (code) {
       case 401:
-        return 'Key không hợp lệ (401). Kiểm tra lại key ở Cài đặt, nhớ copy đủ chuỗi bắt đầu bằng sk-.';
+        return 'Key không hợp lệ (401). Kiểm tra lại key ${provider.name}, nhớ copy đủ chuỗi.';
+      case 402:
+        return 'Hết số dư (402). ${provider.name} yêu cầu nạp thêm tiền.';
       case 429:
-        return 'Vượt hạn mức hoặc hết số dư (429).\n\nVào platform.openai.com → Billing để kiểm tra. OpenAI cần có số dư mới gọi được API.';
+        return 'Vượt hạn mức (429). Chờ ít phút rồi thử lại, hoặc đổi sang nhà cung cấp khác trong Cài đặt.';
       case 404:
-        return 'Không tìm thấy model "$model" (404). Đổi tên model trong Cài đặt, ví dụ gpt-4o-mini.';
+        return 'Không tìm thấy model "$model" (404). Đổi tên model trong Cài đặt.';
       case 400:
-        return 'Yêu cầu không hợp lệ (400). Thử đổi model sang gpt-4o-mini.';
+        return 'Yêu cầu không hợp lệ (400). Thử để trống ô model để dùng mặc định.';
       default:
         return 'Không gọi được AI (mã $code).';
     }
   }
 
-  // ---------------- Gemini ----------------
+  // ---------------- Gemini (dinh dang rieng) ----------------
   static Future<String> _askGemini(String prompt) async {
-    if (geminiKey.isEmpty) {
-      return '⚠️ Chưa có Gemini API key.\n\nVào Cài đặt → dán key lấy miễn phí tại aistudio.google.com/apikey.';
+    final k = key();
+    if (k.isEmpty) {
+      return '⚠️ Chưa có Gemini API key.\n\nLấy miễn phí tại aistudio.google.com/apikey.';
     }
     final uri = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$geminiKey');
+        'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$k');
     try {
       final res = await http
           .post(
@@ -1396,9 +1473,8 @@ class AiService {
           )
           .timeout(const Duration(seconds: 60));
 
-      if (res.statusCode != 200) {
-        return 'Không gọi được AI (mã ${res.statusCode}). Kiểm tra lại API key hoặc kết nối mạng.';
-      }
+      if (res.statusCode != 200) return _err(res.statusCode);
+
       final data =
           jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final cands = data['candidates'] as List?;
@@ -1492,7 +1568,7 @@ YÊU CẦU TRẢ LỜI:
         PageHeader(
           title: 'AI Coach',
           subtitle: AiService.hasKey
-              ? 'Đang dùng ${AiService.provider == 'openai' ? 'ChatGPT' : 'Gemini'} • ${AiService.model}'
+              ? 'Đang dùng ${AiService.provider.name} • ${AiService.model}'
               : 'Vào Cài đặt để nhập API key trước',
         ),
         Section(
@@ -1635,63 +1711,67 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late final _me = TextEditingController(text: Store.myName);
   late final _partner = TextEditingController(text: Store.partnerName);
-  late final _key = TextEditingController(text: Store.str('gemini_key'));
-  late final _openaiKey = TextEditingController(text: Store.str('openai_key'));
-  late final _model = TextEditingController(text: Store.str('ai_model'));
   late final _db = TextEditingController(text: Store.str('db_url'));
   late final _code = TextEditingController(text: Store.str('pair_code'));
   String _start = Store.loveStart;
-  String _provider = Store.str('ai_provider', 'openai');
+  String _provider = Store.str('ai_provider', 'groq');
+  late final _aiKey =
+      TextEditingController(text: Store.str('ai_key_$_provider'));
+  late final _aiModel =
+      TextEditingController(text: Store.str('ai_model_$_provider'));
   bool _connecting = false;
 
   @override
   void dispose() {
     _me.dispose();
     _partner.dispose();
-    _key.dispose();
-    _openaiKey.dispose();
-    _model.dispose();
+    _aiKey.dispose();
+    _aiModel.dispose();
     _db.dispose();
     _code.dispose();
     super.dispose();
   }
 
-  /// O chon nha cung cap AI.
-  Widget _providerTile({
-    required String id,
-    required String emoji,
-    required String name,
-    required String note,
-  }) {
-    final sel = _provider == id;
+  /// O chon nha cung cap AI. Doi nha cung cap thi nap lai key va model cua ben do.
+  Widget _providerTile(AiProvider p) {
+    final sel = _provider == p.id;
     return GestureDetector(
-      onTap: () => setState(() {
-        _provider = id;
-        _model.clear(); // model cua ben nay khong dung cho ben kia
-      }),
+      onTap: () async {
+        // Luu lai key dang go cho nha cung cap hien tai truoc khi doi
+        await Store.setStr('ai_key_$_provider', _aiKey.text.trim());
+        await Store.setStr('ai_model_$_provider', _aiModel.text.trim());
+        setState(() {
+          _provider = p.id;
+          _aiKey.text = Store.str('ai_key_${p.id}');
+          _aiModel.text = Store.str('ai_model_${p.id}');
+        });
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         decoration: BoxDecoration(
           gradient: sel ? C.gradSoft : null,
           color: sel ? null : C.soft.withOpacity(0.5),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-              color: sel ? C.pink : Colors.transparent, width: 1.6),
+          border:
+              Border.all(color: sel ? C.pink : Colors.transparent, width: 1.6),
         ),
         child: Column(
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 22)),
-            const SizedBox(height: 6),
-            Text(name,
+            Text(p.emoji, style: const TextStyle(fontSize: 20)),
+            const SizedBox(height: 5),
+            Text(p.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: 14,
+                    fontSize: 13.5,
                     color: sel ? C.pink : C.ink)),
             const SizedBox(height: 2),
-            Text(note,
+            Text(p.note,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11, color: C.muted)),
+                maxLines: 2,
+                style: const TextStyle(fontSize: 10.5, color: C.muted)),
           ],
         ),
       ),
@@ -1702,10 +1782,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _writeProfile() async {
     await Store.setStr('partner_name',
         _partner.text.trim().isEmpty ? 'Người ấy' : _partner.text.trim());
-    await Store.setStr('gemini_key', _key.text.trim());
-    await Store.setStr('openai_key', _openaiKey.text.trim());
     await Store.setStr('ai_provider', _provider);
-    await Store.setStr('ai_model', _model.text.trim());
+    await Store.setStr('ai_key_$_provider', _aiKey.text.trim());
+    await Store.setStr('ai_model_$_provider', _aiModel.text.trim());
     await Store.setStr('love_start', _start);
     await Store.setStr('db_url', _db.text.trim());
     await Store.setStr('pair_code', _code.text.trim());
@@ -1967,80 +2046,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Dùng dịch vụ nào?',
+                const Text('Chọn dịch vụ AI',
                     style: TextStyle(fontSize: 12.5, color: C.muted)),
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Expanded(
-                      child: _providerTile(
-                        id: 'openai',
-                        emoji: '🤖',
-                        name: 'ChatGPT',
-                        note: 'Trả phí theo lượt',
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _providerTile(
-                        id: 'gemini',
-                        emoji: '✨',
-                        name: 'Gemini',
-                        note: 'Có mức miễn phí',
-                      ),
-                    ),
+                    for (var i = 0; i < 2; i++) ...[
+                      Expanded(child: _providerTile(aiProviders[i])),
+                      if (i == 0) const SizedBox(width: 10),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    for (var i = 2; i < 4; i++) ...[
+                      Expanded(child: _providerTile(aiProviders[i])),
+                      if (i == 2) const SizedBox(width: 10),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 16),
 
-                if (_provider == 'openai') ...[
-                  TextField(
-                    controller: _openaiKey,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                        labelText: 'OpenAI API key', hintText: 'sk-...'),
+                TextField(
+                  controller: _aiKey,
+                  obscureText: true,
+                  decoration: InputDecoration(
+                    labelText: 'API key của ${providerOf(_provider).name}',
+                    hintText: providerOf(_provider).keyHint,
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Lấy key tại platform.openai.com/api-keys. Tài khoản phải có số dư (nạp tối thiểu 5 USD) thì API mới chạy, gói ChatGPT Plus không dùng được cho API.',
-                    style: TextStyle(fontSize: 12, color: C.muted, height: 1.5),
-                  ),
-                ] else ...[
-                  TextField(
-                    controller: _key,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                        labelText: 'Gemini API key', hintText: 'AIza...'),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Lấy key miễn phí tại aistudio.google.com/apikey.',
-                    style: TextStyle(fontSize: 12, color: C.muted),
-                  ),
-                ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Lấy key tại ${providerOf(_provider).keyUrl}'
+                  '${_provider == 'openai' ? '. OpenAI tính phí theo lượt dùng, tài khoản phải có số dư (gói ChatGPT Plus không dùng được cho API).' : '. Miễn phí, không cần thẻ ngân hàng.'}',
+                  style: const TextStyle(
+                      fontSize: 12, color: C.muted, height: 1.5),
+                ),
 
                 const SizedBox(height: 12),
                 TextField(
-                  controller: _model,
+                  controller: _aiModel,
                   decoration: InputDecoration(
                     labelText: 'Model (để trống là dùng mặc định)',
-                    hintText: _provider == 'openai'
-                        ? AiService.defaultOpenAiModel
-                        : AiService.defaultGeminiModel,
+                    hintText: providerOf(_provider).model,
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _provider == 'openai'
-                      ? 'Gợi ý: gpt-4o-mini rẻ và đủ dùng, gpt-4o trả lời sâu hơn nhưng đắt hơn.'
-                      : 'Gợi ý: gemini-2.0-flash nhanh và miễn phí.',
-                  style: const TextStyle(fontSize: 11.5, color: C.muted),
                 ),
                 const SizedBox(height: 14),
                 GradientButton(
                     label: 'Lưu cài đặt AI',
                     icon: Icons.check,
                     onTap: _saveProfile),
+                const SizedBox(height: 10),
+                const Text(
+                  'Key lưu riêng cho từng dịch vụ, đổi qua đổi lại không phải nhập lại. Hết hạn mức bên này thì chuyển sang bên kia dùng tiếp.',
+                  style: TextStyle(
+                      fontSize: 11.5, color: C.muted, height: 1.5),
+                ),
               ],
             ),
           ),

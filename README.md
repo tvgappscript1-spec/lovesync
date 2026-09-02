@@ -110,6 +110,27 @@ Tab 💬 giữa Cảm xúc và Duo Quiz, dùng chung Firebase đã cấu hình.
 
 Dữ liệu nằm ở `couples/{mã cặp đôi}/chat/{ts}_{uid}`, giữ 300 tin gần nhất. Rules hiện tại đã phủ nhánh này.
 
+## AI Coach — chọn 1 trong 4 dịch vụ
+
+Vào **Cài đặt → AI Coach**, chạm ô để chọn:
+
+| | Chi phí | Lấy key tại | Model mặc định |
+|---|---|---|---|
+| ⚡ **Groq** | Miễn phí, không cần thẻ | console.groq.com/keys | `llama-3.3-70b-versatile` |
+| ✨ **Gemini** | Miễn phí, không cần thẻ | aistudio.google.com/apikey | `gemini-2.0-flash` |
+| 🔀 **OpenRouter** | Miễn phí ở model đuôi `:free` | openrouter.ai/keys | `meta-llama/llama-3.3-70b-instruct:free` |
+| 🤖 **ChatGPT** | Trả phí theo lượt, cần nạp tiền | platform.openai.com/api-keys | `gpt-4o-mini` |
+
+Mặc định là **Groq** vì miễn phí và nhanh nhất.
+
+**Key lưu riêng cho từng dịch vụ** — đổi qua đổi lại không phải nhập lại. Hết hạn mức bên này thì chạm sang bên kia dùng tiếp, đây là lý do nên nhập sẵn ít nhất hai key.
+
+Ô **Model** để trống là dùng mặc định. Muốn đổi thì tra tên model trên trang của dịch vụ đó rồi gõ vào.
+
+Vì sao thêm được nhiều dịch vụ dễ thế: Groq, OpenRouter và ChatGPT đều theo **chuẩn API giống hệt nhau**, chỉ khác địa chỉ endpoint. Riêng Gemini có định dạng riêng nên xử lý tách. Muốn thêm dịch vụ khác (Cerebras, NVIDIA NIM, Mistral...), chỉ cần thêm một dòng vào danh sách `aiProviders` trong `lib/main.dart`.
+
+**Lưu ý về ChatGPT:** gói ChatGPT Plus không dùng được cho API — hai thứ tính tiền riêng. Muốn gọi API phải nạp tiền ở mục Billing.
+
 ## Cập nhật app không mất dữ liệu
 
 APK được ký bằng khoá cố định `android/app/lovesync.jks` trong repo, và `versionCode` tự tăng theo số lần chạy workflow. Nhờ vậy bản mới cài đè lên bản cũ được, giữ nguyên dữ liệu.
