@@ -76,6 +76,59 @@ const List<String> moodTags = [
   'Áp lực',
 ];
 
+/// Mau vien avatar theo tam trang: cang vui cang am.
+Color moodColor(int? level) {
+  switch (level) {
+    case 1:
+      return const Color(0xFF7BA7D9); // xanh tram
+    case 2:
+      return const Color(0xFF9BB0D4);
+    case 3:
+      return C.muted;
+    case 4:
+      return const Color(0xFFFFB0C4);
+    case 5:
+      return C.pink;
+    default:
+      return C.soft;
+  }
+}
+
+/// Cac moc ky niem dang nho: tron tram ngay, tron nam.
+({int day, String label})? nextMilestone(int days) {
+  final marks = <({int day, String label})>[];
+  for (var i = 1; i <= 100; i++) {
+    marks.add((day: i * 100, label: '${i * 100} ngày'));
+  }
+  for (var y = 1; y <= 30; y++) {
+    marks.add((day: (y * 365.25).round(), label: '$y năm'));
+  }
+  marks.sort((a, b) => a.day.compareTo(b.day));
+  for (final m in marks) {
+    if (m.day > days) return m;
+  }
+  return null;
+}
+
+/// Moc vua di qua, de tinh phan tram tien do.
+int lastMilestone(int days) {
+  final next = nextMilestone(days);
+  if (next == null) return 0;
+  final marks = <int>[];
+  for (var i = 1; i <= 100; i++) {
+    marks.add(i * 100);
+  }
+  for (var y = 1; y <= 30; y++) {
+    marks.add((y * 365.25).round());
+  }
+  marks.sort();
+  var last = 0;
+  for (final m in marks) {
+    if (m <= days) last = m;
+  }
+  return last;
+}
+
 // ============================================================
 // 2. STORE (SharedPreferences + hook day len Firebase)
 // ============================================================
@@ -811,6 +864,260 @@ Future<String?> pickAvatarEmoji(BuildContext context, String current) {
   );
 }
 
+/// Bang dieu khien chinh: so ngay yeu, moc ky niem, avatar va tam trang hai nguoi.
+class LoveDaysDashboard extends StatefulWidget {
+  final MoodEntry? mine;
+  final MoodEntry? theirs;
+  final VoidCallback onPickDate;
+  const LoveDaysDashboard({
+    super.key,
+    required this.mine,
+    required this.theirs,
+    required this.onPickDate,
+  });
+
+  @override
+  State<LoveDaysDashboard> createState() => _LoveDaysDashboardState();
+}
+
+class _LoveDaysDashboardState extends State<LoveDaysDashboard>
+    with SingleTickerProviderStateMixin {
+  // Nhip tim dap o giua hai avatar
+  late final AnimationController _beat = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _beat.dispose();
+    super.dispose();
+  }
+
+  int get _days => Store.loveStart.isEmpty
+      ? 0
+      : DateTime.now().difference(parseYmd(Store.loveStart)).inDays;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasDate = Store.loveStart.isNotEmpty;
+    final days = _days;
+    final next = hasDate ? nextMilestone(days) : null;
+    final last = hasDate ? lastMilestone(days) : 0;
+    final progress = (next == null || next.day == last)
+        ? 0.0
+        : ((days - last) / (next.day - last)).clamp(0.0, 1.0);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      decoration: BoxDecoration(
+        color: C.card,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: C.purple.withOpacity(0.16),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // ---------- Phan tren: so ngay yeu ----------
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+            decoration: BoxDecoration(
+              gradient: C.grad,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              children: [
+                _avatarPair(),
+                const SizedBox(height: 16),
+                if (!hasDate)
+                  TextButton.icon(
+                    onPressed: widget.onPickDate,
+                    icon: const Icon(Icons.calendar_today_outlined,
+                        size: 16, color: Colors.white),
+                    label: const Text('Chọn ngày bắt đầu yêu',
+                        style: TextStyle(color: Colors.white)),
+                  )
+                else ...[
+                  // So ngay chay dan tu 0 len
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: days.toDouble()),
+                    duration: const Duration(milliseconds: 1200),
+                    curve: Curves.easeOutCubic,
+                    builder: (_, v, __) => Text(
+                      '${v.round()}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 46,
+                        fontWeight: FontWeight.w900,
+                        height: 1.05,
+                        letterSpacing: -1,
+                      ),
+                    ),
+                  ),
+                  const Text('ngày bên nhau',
+                      style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 16),
+                  if (next != null) _milestoneBar(next, progress, days),
+                ],
+              ],
+            ),
+          ),
+
+          // ---------- Phan duoi: tam trang hom nay ----------
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                    child: _moodColumn(
+                        Store.myName, Store.myAvatar, widget.mine, true)),
+                Container(
+                  width: 1,
+                  height: 70,
+                  color: C.soft,
+                  margin: const EdgeInsets.symmetric(horizontal: 6),
+                ),
+                Expanded(
+                    child: _moodColumn(Store.partnerName, Store.partnerAvatar,
+                        widget.theirs, false)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Hai avatar long nhau, giua co trai tim dap theo nhip.
+  Widget _avatarPair() {
+    return SizedBox(
+      height: 74,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _ringAvatar(
+                  Store.myAvatar, Store.myName, widget.mine?.level, true),
+              const SizedBox(width: 26),
+              _ringAvatar(Store.partnerAvatar, Store.partnerName,
+                  widget.theirs?.level, false),
+            ],
+          ),
+          // Trai tim o giua
+          ScaleTransition(
+            scale: Tween(begin: 0.88, end: 1.12).animate(
+              CurvedAnimation(parent: _beat, curve: Curves.easeInOut),
+            ),
+            child: Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.favorite, color: C.pink, size: 19),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Avatar co vien mau theo tam trang hom nay.
+  Widget _ringAvatar(String emoji, String name, int? level, bool isMe) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white.withOpacity(0.35),
+        border: Border.all(color: moodColor(level), width: 2.5),
+      ),
+      child: Avatar(
+          emoji: emoji, name: name, size: 58, ring: Colors.white),
+    );
+  }
+
+  /// Thanh tien do toi moc ky niem tiep theo.
+  Widget _milestoneBar(
+      ({int day, String label}) next, double progress, int days) {
+    final left = next.day - days;
+    return Column(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: progress),
+            duration: const Duration(milliseconds: 1000),
+            curve: Curves.easeOut,
+            builder: (_, v, __) => LinearProgressIndicator(
+              value: v,
+              minHeight: 8,
+              backgroundColor: Colors.white24,
+              valueColor: const AlwaysStoppedAnimation(Colors.white),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          left == 1
+              ? '🎉 Mai là kỷ niệm ${next.label}!'
+              : 'Còn $left ngày nữa tới mốc ${next.label}',
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+
+  /// Cot tam trang cua mot nguoi.
+  Widget _moodColumn(String name, String emoji, MoodEntry? m, bool isMe) {
+    return Column(
+      children: [
+        Text(m == null ? '❔' : moodEmoji[m.level - 1],
+            style: const TextStyle(fontSize: 26)),
+        const SizedBox(height: 4),
+        Text(name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                fontWeight: FontWeight.w700, fontSize: 13.5)),
+        const SizedBox(height: 2),
+        Text(m == null ? 'Chưa ghi nhận' : moodLabel[m.level - 1],
+            style: const TextStyle(fontSize: 11.5, color: C.muted)),
+        if (m != null && m.note.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text('"${m.note}"',
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 11.5,
+                    color: C.muted,
+                    fontStyle: FontStyle.italic,
+                    height: 1.35)),
+          ),
+      ],
+    );
+  }
+}
+
 // ============================================================
 // 5. MOOD SYNC
 // ============================================================
@@ -872,16 +1179,10 @@ class _MoodScreenState extends State<MoodScreen> {
     toast(context, msg);
   }
 
-  int _daysTogether() {
-    if (Store.loveStart.isEmpty) return 0;
-    return DateTime.now().difference(parseYmd(Store.loveStart)).inDays;
-  }
-
   @override
   Widget build(BuildContext context) {
     final mine = Store.moodOf('me', today);
     final theirs = Store.moodOf('partner', today);
-    final days = _daysTogether();
 
     return RefreshIndicator(
       color: C.pink,
@@ -891,9 +1192,7 @@ class _MoodScreenState extends State<MoodScreen> {
         children: [
           PageHeader(
             title: 'LoveSync',
-            subtitle: days > 0
-                ? 'Chúng mình đã bên nhau $days ngày'
-                : 'Đồng bộ cảm xúc mỗi ngày',
+            subtitle: 'Hôm nay ${pretty(today)}',
             actions: [
               IconButton(
                 icon: const Icon(Icons.sync),
@@ -937,23 +1236,22 @@ class _MoodScreenState extends State<MoodScreen> {
               ),
             ),
 
-          // Cap doi hom nay
-          Section(
-            title: 'Hôm nay ${pretty(today)}',
-            child: Row(
-              children: [
-                Expanded(
-                    child: _personTile(Store.myName, Store.myAvatar, mine, true)),
-                Container(
-                  width: 44,
-                  alignment: Alignment.center,
-                  child: const Text('💞', style: TextStyle(fontSize: 24)),
-                ),
-                Expanded(
-                    child: _personTile(
-                        Store.partnerName, Store.partnerAvatar, theirs, false)),
-              ],
-            ),
+          // Bang dieu khien: so ngay yeu, moc ky niem, tam trang hai nguoi
+          LoveDaysDashboard(
+            mine: mine,
+            theirs: theirs,
+            onPickDate: () async {
+              final d = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now(),
+                firstDate: DateTime(2000),
+                lastDate: DateTime.now(),
+                helpText: 'Ngày hai đứa bắt đầu yêu',
+              );
+              if (d == null) return;
+              await Store.setStr('love_start', ymd(d));
+              if (mounted) setState(() {});
+            },
           ),
 
           if (mine != null && theirs != null) _syncBanner(mine, theirs),
@@ -1129,67 +1427,6 @@ class _MoodScreenState extends State<MoodScreen> {
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _personTile(String name, String avatar, MoodEntry? m, bool isMe) {
-    final color = isMe ? C.pink : C.purple;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.09),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            width: 72,
-            height: 66,
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.topCenter,
-              children: [
-                Avatar(emoji: avatar, name: name, size: 60, ring: color),
-                Positioned(
-                  right: 2,
-                  bottom: 0,
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(m == null ? '❔' : moodEmoji[m.level - 1],
-                        style: const TextStyle(fontSize: 15)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 2),
-          Text(m == null ? 'Chưa ghi nhận' : moodLabel[m.level - 1],
-              style: const TextStyle(fontSize: 12, color: C.muted)),
-          if (m != null && m.note.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
-              child: Text('"${m.note}"',
-                  textAlign: TextAlign.center,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 11.5,
-                      color: C.muted,
-                      fontStyle: FontStyle.italic)),
-            ),
         ],
       ),
     );
