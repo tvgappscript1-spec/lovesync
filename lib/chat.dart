@@ -2,8 +2,11 @@
 // Nhan tin giua hai nguoi, dung chung Firebase Realtime Database qua REST.
 // Khi dang o man hinh nay thi tu tai tin moi moi 5 giay.
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
 
 import 'main.dart';
 import 'sync.dart';
@@ -82,6 +85,105 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _sending = false);
     WidgetsBinding.instance.addPostFrameCallback((_) => _toBottom());
     if (err != null) toast(context, err);
+  }
+
+  /// Chon anh -> thu nho -> gui. Anh di thang qua Firebase nen phai that nhe.
+  Future<void> _sendImage(ImageSource src) async {
+    if (_sending) return;
+    try {
+      final file = await ImagePicker().pickImage(
+        source: src,
+        maxWidth: 1024,
+        imageQuality: 85,
+      );
+      if (file == null) return;
+
+      setState(() => _sending = true);
+      final bytes = await file.readAsBytes();
+      final decoded = img.decodeImage(bytes);
+      if (decoded == null) {
+        if (mounted) {
+          setState(() => _sending = false);
+          toast(context, 'Không đọc được ảnh này');
+        }
+        return;
+      }
+      // 640px chat luong 60 -> khoang 30-60KB, du net tren dien thoai
+      final small = img.copyResize(decoded, width: 640);
+      final jpg = img.encodeJpg(small, quality: 60);
+
+      final err = await Sync.sendImage(base64Encode(jpg));
+      if (!mounted) return;
+      setState(() => _sending = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _toBottom());
+      if (err != null) toast(context, err);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      toast(context, 'Không gửi được ảnh: $e');
+    }
+  }
+
+  void _pickImageSource() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined, color: C.pink),
+              title: const Text('Chụp ảnh'),
+              onTap: () {
+                Navigator.pop(context);
+                _sendImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined, color: C.purple),
+              title: const Text('Chọn từ thư viện'),
+              onTap: () {
+                Navigator.pop(context);
+                _sendImage(ImageSource.gallery);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Xem anh to, chum hai ngon de phong to.
+  void _viewImage(String b64) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: Colors.black,
+            foregroundColor: Colors.white,
+            leading: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              minScale: 1,
+              maxScale: 5,
+              child: Image.memory(base64Decode(b64)),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -201,7 +303,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
         // Tin chi co emoji thi phong to, bo bong bong
         final text = (m['text'] ?? '').toString();
-        final onlyEmoji = text.runes.length <= 3 &&
+        final image = (m['img'] ?? '').toString();
+        final onlyEmoji = image.isEmpty &&
+            text.runes.length <= 3 &&
             RegExp(r'^[\p{Emoji}\s]+$', unicode: true).hasMatch(text);
 
         return Column(
@@ -246,7 +350,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                 style: const TextStyle(fontSize: 40)),
                           )
                         : Container(
-                            padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+                            padding: image.isNotEmpty
+                                ? const EdgeInsets.all(5)
+                                : const EdgeInsets.fromLTRB(14, 10, 14, 8),
                             decoration: BoxDecoration(
                               gradient: mine ? C.grad : null,
                               color: mine ? null : Colors.white,
@@ -268,19 +374,57 @@ class _ChatScreenState extends State<ChatScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                Text(text,
-                                    style: TextStyle(
-                                        fontSize: 14.5,
-                                        height: 1.4,
-                                        color:
-                                            mine ? Colors.white : C.ink)),
-                                const SizedBox(height: 3),
-                                Text('${two(time.hour)}:${two(time.minute)}',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        color: mine
-                                            ? Colors.white70
-                                            : C.muted)),
+                                if (image.isNotEmpty)
+                                  GestureDetector(
+                                    onTap: () => _viewImage(image),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                            maxHeight: 260, maxWidth: 240),
+                                        child: Image.memory(
+                                          base64Decode(image),
+                                          fit: BoxFit.cover,
+                                          gaplessPlayback: true,
+                                          errorBuilder: (_, __, ___) =>
+                                              const SizedBox(
+                                            width: 160,
+                                            height: 120,
+                                            child: Center(
+                                                child: Icon(
+                                                    Icons.broken_image_outlined,
+                                                    color: C.muted)),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                if (text.isNotEmpty)
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                        top: image.isNotEmpty ? 6 : 0,
+                                        left: image.isNotEmpty ? 8 : 0,
+                                        right: image.isNotEmpty ? 8 : 0),
+                                    child: Text(text,
+                                        style: TextStyle(
+                                            fontSize: 14.5,
+                                            height: 1.4,
+                                            color:
+                                                mine ? Colors.white : C.ink)),
+                                  ),
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                      top: 3,
+                                      right: image.isNotEmpty ? 8 : 0,
+                                      bottom: image.isNotEmpty ? 4 : 0),
+                                  child: Text(
+                                      '${two(time.hour)}:${two(time.minute)}',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: mine
+                                              ? Colors.white70
+                                              : C.muted)),
+                                ),
                               ],
                             ),
                           ),
@@ -331,6 +475,21 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          // Nut gui anh
+          GestureDetector(
+            onTap: _sending ? null : _pickImageSource,
+            child: Container(
+              width: 48,
+              height: 48,
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                gradient: C.gradSoft,
+                shape: BoxShape.circle,
+                border: Border.all(color: C.pink.withOpacity(0.3)),
+              ),
+              child: const Icon(Icons.image_outlined, color: C.pink, size: 22),
+            ),
+          ),
           Expanded(
             child: TextField(
               controller: _input,

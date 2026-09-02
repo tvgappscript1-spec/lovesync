@@ -11,6 +11,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'quiz.dart';
 import 'extras.dart';
 import 'chat.dart';
+import 'games.dart';
+import 'notif.dart';
 import 'sync.dart';
 
 // ============================================================
@@ -279,6 +281,7 @@ class Store {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Store.init();
+  await Notif.init();
   Sync.startAuto();
   runApp(const LoveSyncApp());
 }
@@ -375,6 +378,12 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _seenTs = _lastChatTs();
     Sync.revision.addListener(_onSync);
+    // Cham vao thong bao he thong -> mo thang tab Thu thi
+    Notif.onTap = () {
+      if (!mounted) return;
+      setState(() => _index = 1);
+      Sync.markChatRead();
+    };
   }
 
   int _lastChatTs() {
@@ -409,6 +418,15 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     if (_index == 1) return;
 
     HapticFeedback.mediumImpact();
+
+    // Thong bao tren thanh he thong: van thay duoc khi app chay ngam
+    Notif.show(
+      title: '${(last['name'] ?? Store.partnerName)} vừa nhắn 💌',
+      body: (last['text'] ?? '').toString().isEmpty
+          ? 'Đã gửi một tấm ảnh'
+          : (last['text'] ?? '').toString(),
+    );
+
     _showBanner(
       name: (last['name'] ?? Store.partnerName).toString(),
       avatar: (last['avatar'] ?? Store.partnerAvatar).toString(),
@@ -507,7 +525,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       MoodScreen(),
       ChatScreen(),
       QuizScreen(),
-      CoachScreen(),
+      GameScreen(),
       ExtrasScreen(),
     ];
     final unread = Sync.unreadCount();
@@ -545,9 +563,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
               selectedIcon: Icon(Icons.quiz),
               label: 'Duo Quiz'),
           const NavigationDestination(
-              icon: Icon(Icons.auto_awesome_outlined),
-              selectedIcon: Icon(Icons.auto_awesome),
-              label: 'AI Coach'),
+              icon: Icon(Icons.grid_on_outlined),
+              selectedIcon: Icon(Icons.grid_on),
+              label: 'Cờ ca-rô'),
           const NavigationDestination(
               icon: Icon(Icons.widgets_outlined),
               selectedIcon: Icon(Icons.widgets),
@@ -1356,8 +1374,39 @@ class _MoodScreenState extends State<MoodScreen> {
             ),
           ),
 
-          // Bieu do 7 ngay
-          Section(title: '7 ngày gần nhất', child: _weekChart()),
+          // Bieu do 7 ngay + chuoi ngay lien tiep
+          Section(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text('7 ngày gần nhất',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700)),
+                    const Spacer(),
+                    if (_streak() > 1)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          gradient: C.gradSoft,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: C.pink.withOpacity(0.3)),
+                        ),
+                        child: Text('🔥 ${_streak()} ngày liền',
+                            style: const TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                                color: C.pink)),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _weekChart(),
+              ],
+            ),
+          ),
 
           if (Sync.status.value.isNotEmpty)
             Padding(
@@ -1492,51 +1541,162 @@ class _MoodScreenState extends State<MoodScreen> {
     );
   }
 
+  /// Chuoi ngay ghi cam xuc lien tiep, tinh nguoc tu hom nay.
+  int _streak() {
+    var n = 0;
+    for (var i = 0; i < 60; i++) {
+      final d = ymd(DateTime.now().subtract(Duration(days: i)));
+      if (Store.moodOf('me', d) == null) {
+        // Hom nay chua ghi thi chua tinh la dut chuoi
+        if (i == 0) continue;
+        break;
+      }
+      n++;
+    }
+    return n;
+  }
+
   Widget _weekChart() {
     final days = List.generate(
         7, (i) => ymd(DateTime.now().subtract(Duration(days: 6 - i))));
-    return SizedBox(
-      height: 130,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: days.map((d) {
-          final me = Store.moodOf('me', d)?.level ?? 0;
-          final pa = Store.moodOf('partner', d)?.level ?? 0;
-          return Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    _bar(me, C.pink),
-                    const SizedBox(width: 3),
-                    _bar(pa, C.purple),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(d.substring(8),
-                    style: const TextStyle(fontSize: 10.5, color: C.muted)),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
+    final me = days.map((d) => Store.moodOf('me', d)?.level ?? 0).toList();
+    final pa = days.map((d) => Store.moodOf('partner', d)?.level ?? 0).toList();
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 132,
+          child: CustomPaint(
+            size: const Size(double.infinity, 132),
+            painter: _MoodChartPainter(me: me, pa: pa),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: days
+              .map((d) => Expanded(
+                    child: Text(d.substring(8),
+                        textAlign: TextAlign.center,
+                        style:
+                            const TextStyle(fontSize: 10.5, color: C.muted)),
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _legend(C.pink, Store.myName),
+            const SizedBox(width: 18),
+            _legend(C.purple, Store.partnerName),
+          ],
+        ),
+      ],
     );
   }
 
-  Widget _bar(int level, Color color) {
-    final h = level == 0 ? 6.0 : 16.0 * level;
-    return Container(
-      width: 10,
-      height: h,
-      decoration: BoxDecoration(
-        color: level == 0 ? C.soft : color,
-        borderRadius: BorderRadius.circular(6),
-      ),
-    );
+  Widget _legend(Color c, String name) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 110),
+            child: Text(name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11.5, color: C.muted)),
+          ),
+        ],
+      );
+}
+
+/// Bieu do duong cho 7 ngay: hai duong cong mem cho hai nguoi,
+/// co vung to nhat ben duoi de nhin ro xu huong.
+class _MoodChartPainter extends CustomPainter {
+  final List<int> me;
+  final List<int> pa;
+  _MoodChartPainter({required this.me, required this.pa});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const pad = 14.0;
+    final w = size.width;
+    final h = size.height;
+
+    // Duong ke ngang mo lam moc
+    final grid = Paint()
+      ..color = C.soft
+      ..strokeWidth = 1;
+    for (var i = 0; i <= 4; i++) {
+      final y = pad + (h - pad * 2) * i / 4;
+      canvas.drawLine(Offset(0, y), Offset(w, y), grid);
+    }
+
+    void drawSeries(List<int> data, Color color) {
+      final pts = <Offset>[];
+      for (var i = 0; i < data.length; i++) {
+        if (data[i] == 0) continue; // ngay chua ghi thi bo qua
+        final x = w * (i + 0.5) / data.length;
+        final y = pad + (h - pad * 2) * (1 - (data[i] - 1) / 4);
+        pts.add(Offset(x, y));
+      }
+      if (pts.isEmpty) return;
+
+      // Vung to nhat duoi duong
+      if (pts.length > 1) {
+        final fill = Path()..moveTo(pts.first.dx, h);
+        for (final p in pts) {
+          fill.lineTo(p.dx, p.dy);
+        }
+        fill.lineTo(pts.last.dx, h);
+        fill.close();
+        canvas.drawPath(
+          fill,
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [color.withOpacity(0.28), color.withOpacity(0.02)],
+            ).createShader(Rect.fromLTWH(0, 0, w, h)),
+        );
+      }
+
+      // Duong noi
+      final line = Path()..moveTo(pts.first.dx, pts.first.dy);
+      for (var i = 1; i < pts.length; i++) {
+        // Bezier cho duong cong muot thay vi gay khuc
+        final prev = pts[i - 1], cur = pts[i];
+        final midX = (prev.dx + cur.dx) / 2;
+        line.cubicTo(midX, prev.dy, midX, cur.dy, cur.dx, cur.dy);
+      }
+      canvas.drawPath(
+        line,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..strokeCap = StrokeCap.round
+          ..color = color,
+      );
+
+      // Cham tron tai moi ngay
+      for (final p in pts) {
+        canvas.drawCircle(p, 4.5, Paint()..color = Colors.white);
+        canvas.drawCircle(p, 3, Paint()..color = color);
+      }
+    }
+
+    drawSeries(pa, C.purple);
+    drawSeries(me, C.pink);
   }
+
+  @override
+  bool shouldRepaint(covariant _MoodChartPainter old) =>
+      old.me.toString() != me.toString() || old.pa.toString() != pa.toString();
 }
 
 // ============================================================
@@ -1738,7 +1898,9 @@ class AiService {
 }
 
 class CoachScreen extends StatefulWidget {
-  const CoachScreen({super.key});
+  /// true = dang nam trong tab "Cua minh", an bot tieu de cho do trung lap.
+  final bool embedded;
+  const CoachScreen({super.key, this.embedded = false});
   @override
   State<CoachScreen> createState() => _CoachScreenState();
 }
@@ -1810,12 +1972,23 @@ YÊU CẦU TRẢ LỜI:
   Widget build(BuildContext context) {
     return ListView(
       children: [
-        PageHeader(
-          title: 'AI Coach',
-          subtitle: AiService.hasKey
-              ? 'Đang dùng ${AiService.provider.name} • ${AiService.model}'
-              : 'Vào Cài đặt để nhập API key trước',
-        ),
+        if (!widget.embedded)
+          PageHeader(
+            title: 'AI Coach',
+            subtitle: AiService.hasKey
+                ? 'Đang dùng ${AiService.provider.name} • ${AiService.model}'
+                : 'Vào Cài đặt để nhập API key trước',
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 2, 20, 12),
+            child: Text(
+              AiService.hasKey
+                  ? 'Đang dùng ${AiService.provider.name} • ${AiService.model}'
+                  : 'Vào Cài đặt để nhập API key trước',
+              style: const TextStyle(fontSize: 12, color: C.muted),
+            ),
+          ),
         Section(
           title: 'Chọn điều bạn cần',
           child: Column(
@@ -1962,6 +2135,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _provider = Store.str('ai_provider', 'groq');
   bool _notifyOn = Sync.notifyOn;
   bool _notifyPreview = Sync.notifyPreview;
+  bool _notifPermission = false;
   late final _aiKey =
       TextEditingController(text: Store.str('ai_key_$_provider'));
   late final _aiModel =
@@ -1977,6 +2151,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _db.dispose();
     _code.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    Notif.isEnabled().then((v) {
+      if (mounted) setState(() => _notifPermission = v);
+    });
   }
 
   /// Mot dong huong dan co danh so.
@@ -2321,12 +2503,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // ---------- THONG BAO KHI APP DONG ----------
           Section(
-            title: 'Thông báo khi app đã đóng',
+            title: 'Thông báo',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Quyen thong bao he thong
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _notifPermission
+                        ? Colors.green.withOpacity(0.10)
+                        : C.soft.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                          _notifPermission
+                              ? Icons.notifications_active
+                              : Icons.notifications_off_outlined,
+                          size: 20,
+                          color: _notifPermission ? Colors.green : C.muted),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _notifPermission
+                              ? 'Đã có quyền thông báo hệ thống'
+                              : 'Chưa cấp quyền thông báo cho app',
+                          style: const TextStyle(fontSize: 12.5),
+                        ),
+                      ),
+                      if (!_notifPermission)
+                        TextButton(
+                          onPressed: () async {
+                            await Notif.requestPermission();
+                            final ok = await Notif.isEnabled();
+                            if (!mounted) return;
+                            setState(() => _notifPermission = ok);
+                            toast(
+                                context,
+                                ok
+                                    ? 'Đã bật thông báo'
+                                    : 'Vào Cài đặt máy → Ứng dụng → LoveSync → Thông báo để bật');
+                          },
+                          child: const Text('Cấp quyền'),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
                 const Text(
-                  'App dùng dịch vụ miễn phí ntfy.sh. Mỗi máy cần cài thêm app "ntfy" một lần, sau đó nhận được thông báo kể cả khi LoveSync đã tắt hẳn.',
+                  'Quyền này cho phép hiện thông báo trên thanh trạng thái khi app đang chạy ngầm. Khi app bị đóng hẳn thì cần thêm ntfy bên dưới.',
+                  style: TextStyle(fontSize: 11.5, color: C.muted, height: 1.5),
+                ),
+
+                const Divider(height: 28),
+
+                const Text(
+                  'Muốn nhận báo cả khi app đã tắt hẳn thì cài thêm app "ntfy" (miễn phí) và đăng ký kênh dưới đây.',
                   style: TextStyle(fontSize: 12.5, color: C.muted, height: 1.5),
                 ),
                 const SizedBox(height: 14),

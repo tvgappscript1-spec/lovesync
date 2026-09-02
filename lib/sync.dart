@@ -315,6 +315,81 @@ class Sync {
     }
   }
 
+  /// Gui mot tam anh. Anh duoc thu nho truoc khi day len cho nhe.
+  static Future<String?> sendImage(String base64Jpg, {String caption = ''}) async {
+    if (!enabled) return 'Chưa ghép đôi nên chưa gửi được';
+
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final id = '${ts}_$uid';
+    final msg = {
+      'id': id,
+      'by': uid,
+      'name': Store.myName,
+      'avatar': Store.str('my_avatar'),
+      'text': caption,
+      'img': base64Jpg,
+      'ts': ts,
+    };
+
+    final local = Store.listMap('chat')..add(msg);
+    await Store.setListMap('chat', local);
+    await Store.setStr('chat_read_ts', '$ts');
+    revision.value++;
+
+    try {
+      await http
+          .put(_u('chat/$id'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(msg))
+          .timeout(const Duration(seconds: 40));
+
+      await pushNotify(
+        title: '${Store.myName} vừa gửi ảnh 📷',
+        body: notifyPreview && caption.isNotEmpty
+            ? caption
+            : 'Mở LoveSync để xem nhé',
+        tags: 'camera',
+      );
+      return null;
+    } catch (_) {
+      return 'Mất mạng, ảnh chưa gửi được';
+    }
+  }
+
+  // ----------------------------------------------------------
+  // VAN CO CA-RO
+  // ----------------------------------------------------------
+  /// Doc van co hien tai tu Firebase.
+  static Future<Map<String, dynamic>?> fetchGame() async {
+    if (!enabled) return null;
+    try {
+      final res = await http
+          .get(Uri.parse('$dbUrl/couples/$code/game.json'))
+          .timeout(const Duration(seconds: 15));
+      if (res.statusCode != 200) return null;
+      final raw = jsonDecode(utf8.decode(res.bodyBytes));
+      if (raw is! Map) return null;
+      return Map<String, dynamic>.from(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Ghi de van co. Hai nguoi danh luan phien nen it khi ghi cung luc.
+  static Future<bool> saveGame(Map<String, dynamic> game) async {
+    if (!enabled) return false;
+    try {
+      final res = await http
+          .put(_u('game'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(game))
+          .timeout(const Duration(seconds: 20));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<void> pullChat() async {
     if (!enabled) return;
     try {

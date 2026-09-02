@@ -11,7 +11,7 @@ class ExtrasScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,
+      length: 6,
       child: Column(
         children: [
           const PageHeader(
@@ -28,6 +28,7 @@ class ExtrasScreen extends StatelessWidget {
             tabs: [
               Tab(text: 'Kỷ niệm'),
               Tab(text: 'Vòng quay'),
+              Tab(text: 'AI Coach'),
               Tab(text: 'Wishlist'),
               Tab(text: 'Ngày quan trọng'),
               Tab(text: 'Quỹ chung'),
@@ -39,6 +40,7 @@ class ExtrasScreen extends StatelessWidget {
               children: [
                 MemoryTab(),
                 WheelTab(),
+                CoachScreen(embedded: true),
                 _WishlistTab(),
                 _EventTab(),
                 _SavingTab(),

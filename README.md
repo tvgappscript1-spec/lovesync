@@ -147,6 +147,28 @@ Trước đây trả lời xong là thấy ngay ô của người kia nếu họ
 
 Ô khoá hiện hai dấu tích cho biết ai đã trả lời, ai chưa. Khi đủ hai người, đáp án mở ra cạnh nhau. Nếu có câu trùng nhau, màn hình bắn **pháo hoa** — 5 chùm nổ lệch nhịp, hạt rơi theo trọng lực, cũng vẽ bằng `CustomPainter`.
 
+## Cờ ca-rô (tab 5 dưới cùng)
+
+Bàn 9×9, ai xếp được **5 quân liên tiếp** theo hàng, cột hoặc chéo là thắng.
+
+- Đánh luân phiên qua Firebase, máy kia thấy nước đi sau tối đa 3 giây.
+- Người bấm *Ván mới* cầm quân ✕ và đi trước; thắng xong bấm Ván mới thì tự đổi bên.
+- Ô vừa đánh có viền tím, 5 ô thắng tô hồng.
+- Tỷ số hai bên lưu trên Firebase nên không mất khi tắt app.
+- Avatar bên nào sáng viền là bên đó đang tới lượt.
+
+Thuật toán dò 5 quân đã được test riêng cho cả 4 hướng và trường hợp vắt qua biên bàn cờ.
+
+## AI Coach
+
+Chuyển vào **Của mình → AI Coach** (tab thứ 3), nhường chỗ dưới cùng cho Cờ ca-rô. Chức năng giữ nguyên, chỉ ẩn bớt tiêu đề cho gọn.
+
+## Trang Cảm xúc
+
+- Biểu đồ 7 ngày đổi từ cột sang **đường cong mượt** (Bezier) có vùng tô nhạt bên dưới, hai màu cho hai người.
+- Ngày chưa ghi thì bỏ trống thay vì vẽ cột rỗng, nên nhìn ra xu hướng rõ hơn.
+- Huy hiệu **🔥 chuỗi ngày ghi liên tiếp** ở góc phải. Hôm nay chưa ghi thì chuỗi chưa bị đứt.
+
 ## Cập nhật app không mất dữ liệu
 
 APK được ký bằng khoá cố định `android/app/lovesync.jks` trong repo, và `versionCode` tự tăng theo số lần chạy workflow. Nhờ vậy bản mới cài đè lên bản cũ được, giữ nguyên dữ liệu.

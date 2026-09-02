@@ -15,6 +15,7 @@ dependencies:
   image_picker: ^1.1.2        # chup anh / chon tu thu vien
   path_provider: ^2.1.5       # luu anh vao thu muc rieng cua app
   image: ^4.3.0               # thu nho anh de dong bo (thuan Dart)
+  flutter_local_notifications: ^18.0.1   # thong bao tren thanh he thong
   cupertino_icons: ^1.0.8
 
 dev_dependencies:

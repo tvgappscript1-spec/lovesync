@@ -3,6 +3,10 @@
     <!-- Goi Gemini API va Firebase Realtime Database -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- Thong bao tren thanh trang thai (Android 13 tro len bat buoc xin quyen) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+
     <!-- Chup anh va chon anh tu thu vien -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
